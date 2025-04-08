@@ -23,13 +23,13 @@ func NewServer(node *state.Node) *server {
 }
 
 func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	mu := sync.RWMutex{}
-	mu.Lock()
-	defer mu.Unlock()
-	log.Printf("received: termclear: %v candidateId: %v \n", vr.Term, vr.CandidateId)
+	log.Printf("candidate term: %v candidateId: %v \n", vr.Term, vr.CandidateId)
 	if vr.GetTerm() > s.node.CurrentTerm && len(s.node.VotedFor) == 0 {
+		s.node.Mu.Lock()
 		s.node.CurrentTerm = vr.GetTerm()
 		s.node.VotedFor = vr.GetCandidateId()
+		s.node.Mu.Unlock()
+		s.node.PrintDetails()
 		return &pb.RequestVoteResponse{Term: s.node.CurrentTerm, VoteGranted: true}, nil
 	} else {
 		return &pb.RequestVoteResponse{Term: s.node.CurrentTerm, VoteGranted: false}, nil

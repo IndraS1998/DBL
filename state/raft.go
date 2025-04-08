@@ -8,10 +8,11 @@ import (
 )
 
 type Node struct {
-	CurrentTerm, CommitIndex, LastApplied    int32
-	Timer                                    time.Duration
-	LeaderAddress, Status, Address, VotedFor string
-	Peers                                    []string
+	CurrentTerm, CommitIndex, LastApplied, ElectionCounter int32
+	Timer                                                  time.Duration
+	LeaderAddress, Status, Address, VotedFor               string
+	Peers                                                  []string
+	Mu                                                     sync.RWMutex
 }
 
 // creates a new computational node
@@ -23,15 +24,16 @@ func NewNode(address string, allPeers []string) *Node {
 		}
 	}
 	return &Node{
-		CurrentTerm:   0,
-		VotedFor:      "",
-		CommitIndex:   0,
-		LastApplied:   0,
-		Timer:         RandomTimer(),
-		LeaderAddress: "",
-		Status:        "follower",
-		Peers:         peers,
-		Address:       address,
+		CurrentTerm:     0,
+		VotedFor:        "",
+		CommitIndex:     0,
+		LastApplied:     0,
+		Timer:           RandomTimer(),
+		LeaderAddress:   "",
+		Status:          "follower",
+		Peers:           peers,
+		Address:         address,
+		ElectionCounter: 0,
 	}
 }
 

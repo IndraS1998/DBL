@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	pb "raft/raft"
@@ -15,10 +14,9 @@ import (
 
 // beggin election triggers new election
 func BegginElection(n *Node) {
-	mu := sync.Mutex{}
 	fmt.Printf("%v Starting election...", n.Address)
 
-	mu.Lock()
+	n.Mu.Lock()
 	// increment term
 	n.CurrentTerm++
 	// change state to candidate
@@ -26,7 +24,7 @@ func BegginElection(n *Node) {
 	// vote for self
 	n.VotedFor = n.Address
 	receivedVotes := 1
-	mu.Unlock()
+	n.Mu.Unlock()
 	// send request vote to all peers
 	c := make(chan bool)
 	for _, peer := range n.Peers {
@@ -40,8 +38,9 @@ func BegginElection(n *Node) {
 	}
 	if receivedVotes > len(n.Peers)/2 {
 		fmt.Printf("received votes %v , %v is now the leader \n", receivedVotes, n.Address)
-		mu.Lock()
+		n.Mu.Lock()
 		n.Status = "leader"
+		n.Mu.Unlock()
 	} else {
 		fmt.Printf("received votes %v , %v will revert to follower \n", receivedVotes, n.Address)
 	}
@@ -59,7 +58,7 @@ func performRPC(n *Node, peerAddress string, resultChan chan bool) {
 	}
 	defer con.Close()
 	c := pb.NewRaftClient(con)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	vr, err := c.RequestVote(ctx, &pb.RequestVoteRequest{Term: n.CurrentTerm,
 		CandidateId: n.Address, LastLogIndex: n.CommitIndex, LastLogTerm: n.LastApplied})

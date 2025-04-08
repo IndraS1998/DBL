@@ -13,10 +13,11 @@ func RandomTimer() time.Duration {
 }
 
 func Countdown(n *Node) {
-	elapsed := 0
-	for elapsed < int(n.Timer.Seconds()) {
-		fmt.Println("elapsed time:", elapsed)
+	for int(n.ElectionCounter) < int(n.Timer.Seconds()) {
+		fmt.Println("elapsed time:", n.ElectionCounter)
 		time.Sleep(1 * time.Second)
-		elapsed++
+		n.Mu.Lock()
+		n.ElectionCounter++
+		n.Mu.Unlock()
 	}
 }
