@@ -17,14 +17,12 @@ func BegginElection(n *Node) {
 	fmt.Printf("%v Starting election...", n.Address)
 
 	n.Mu.Lock()
-	// increment term
 	n.CurrentTerm++
-	// change state to candidate
 	n.Status = "candidate"
-	// vote for self
 	n.VotedFor = n.Address
 	receivedVotes := 1
 	n.Mu.Unlock()
+
 	// send request vote to all peers
 	c := make(chan bool)
 	for _, peer := range n.Peers {
