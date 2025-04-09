@@ -28,12 +28,12 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 		s.node.Mu.Lock()
 		s.node.CurrentTerm = vr.GetTerm()
 		s.node.VotedFor = vr.GetCandidateId()
+		s.node.ResetTimerChan <- true
 		s.node.Mu.Unlock()
 		s.node.PrintDetails()
 		return &pb.RequestVoteResponse{Term: s.node.CurrentTerm, VoteGranted: true}, nil
 	} else {
 		return &pb.RequestVoteResponse{Term: s.node.CurrentTerm, VoteGranted: false}, nil
-
 	}
 }
 

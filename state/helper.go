@@ -1,7 +1,6 @@
 package state
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 )
@@ -12,7 +11,11 @@ func RandomTimer() time.Duration {
 	return time.Duration(s) * time.Second
 }
 
-func Countdown(n *Node) {
+/*
+//func Countdown(n *Node) {
+	n.Mu.Lock()
+	n.Timer = RandomTimer()
+	n.Mu.Unlock()
 	for int(n.ElectionCounter) < int(n.Timer.Seconds()) {
 		fmt.Println("elapsed time:", n.ElectionCounter)
 		time.Sleep(1 * time.Second)
@@ -21,3 +24,4 @@ func Countdown(n *Node) {
 		n.Mu.Unlock()
 	}
 }
+*/

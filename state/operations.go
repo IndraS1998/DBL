@@ -14,7 +14,6 @@ import (
 
 // beggin election triggers new election
 func BegginElection(n *Node) {
-	fmt.Printf("%v Starting election...", n.Address)
 
 	n.Mu.Lock()
 	n.CurrentTerm++
@@ -22,37 +21,50 @@ func BegginElection(n *Node) {
 	n.VotedFor = n.Address
 	receivedVotes := 1
 	n.Mu.Unlock()
-
 	// send request vote to all peers
-	c := make(chan bool)
+	c := make(chan bool, len(n.Peers))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
 	for _, peer := range n.Peers {
-		go performRPC(n, peer, c)
+		go func(p string) {
+			VoteGranted := performRPC(n, p)
+			c <- VoteGranted
+		}(peer)
 	}
+
 	for i := 0; i < len(n.Peers); i++ {
-		tempRes := <-c
-		if tempRes {
-			receivedVotes++
+		select {
+		case granted := <-c:
+			if granted {
+				receivedVotes++
+			}
+		case <-ctx.Done():
+			fmt.Println("vote collection timedout restarting election")
+			n.StartElectionChan <- true
+			return
 		}
 	}
 	if receivedVotes > len(n.Peers)/2 {
-		fmt.Printf("received votes %v , %v is now the leader \n", receivedVotes, n.Address)
+		fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
 		n.Mu.Lock()
 		n.Status = "leader"
 		n.Mu.Unlock()
+		n.StopTimerChan <- true
 	} else {
+		n.Mu.Lock()
+		n.Status = "follower"
+		n.Mu.Unlock()
+		n.ResetTimerChan <- true
 		fmt.Printf("received votes %v , %v will revert to follower \n", receivedVotes, n.Address)
 	}
-
-	// if vote timer elapse : restart election
-
-	// TODO if receive rpc from a leader : transition back to follower
 }
 
-func performRPC(n *Node, peerAddress string, resultChan chan bool) {
+func performRPC(n *Node, peerAddress string) bool {
 	fmt.Printf("sending request vote to %v \n", peerAddress)
 	con, err := grpc.NewClient(fmt.Sprintf("localhost:%v", peerAddress), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("failed to connect to server %v:", err)
+		log.Printf("failed to connect to server %v:", err)
 	}
 	defer con.Close()
 	c := pb.NewRaftClient(con)
@@ -61,8 +73,7 @@ func performRPC(n *Node, peerAddress string, resultChan chan bool) {
 	vr, err := c.RequestVote(ctx, &pb.RequestVoteRequest{Term: n.CurrentTerm,
 		CandidateId: n.Address, LastLogIndex: n.CommitIndex, LastLogTerm: n.LastApplied})
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		log.Printf("could not greet: %v", err)
 	}
-	// return vr.VoteGranted as a channel
-	resultChan <- vr.VoteGranted
+	return vr.VoteGranted
 }

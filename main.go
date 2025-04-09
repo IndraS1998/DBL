@@ -32,12 +32,36 @@ func main() {
 		go vote.StartVoteListenServer(n5, &wg)
 	*/
 	//start various timers
-	go n1.StartTimer(&wg)
-	go n2.StartTimer(&wg)
-	go n3.StartTimer(&wg)
+	n1.StartTimer(&wg)
+	n2.StartTimer(&wg)
+	n3.StartTimer(&wg)
 	/*
 		go n4.StartTimer(&wg)
 		go n5.StartTimer(&wg)
 	*/
+	go func() {
+		for {
+			select {
+			case <-n1.StartElectionChan:
+				state.BegginElection(n1)
+			}
+		}
+	}()
+	go func() {
+		for {
+			select {
+			case <-n1.StartElectionChan:
+				state.BegginElection(n2)
+			}
+		}
+	}()
+	go func() {
+		for {
+			select {
+			case <-n1.StartElectionChan:
+				state.BegginElection(n3)
+			}
+		}
+	}()
 	wg.Wait()
 }
