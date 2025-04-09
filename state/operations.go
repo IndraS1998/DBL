@@ -22,10 +22,12 @@ func BegginElection(n *Node) {
 	receivedVotes := 1
 	n.Mu.Unlock()
 	// send request vote to all peers
-	c := make(chan bool, len(n.Peers))
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
 
+	c := make(chan bool, len(n.Peers))
+	/*
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+	*/
 	for _, peer := range n.Peers {
 		go func(p string) {
 			VoteGranted := performRPC(n, p)
@@ -39,10 +41,6 @@ func BegginElection(n *Node) {
 			if granted {
 				receivedVotes++
 			}
-		case <-ctx.Done():
-			fmt.Println("vote collection timedout restarting election")
-			n.StartElectionChan <- true
-			return
 		}
 	}
 	if receivedVotes > len(n.Peers)/2 {
@@ -68,7 +66,7 @@ func performRPC(n *Node, peerAddress string) bool {
 	}
 	defer con.Close()
 	c := pb.NewRaftClient(con)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	vr, err := c.RequestVote(ctx, &pb.RequestVoteRequest{Term: n.CurrentTerm,
 		CandidateId: n.Address, LastLogIndex: n.CommitIndex, LastLogTerm: n.LastApplied})
