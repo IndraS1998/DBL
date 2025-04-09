@@ -50,7 +50,7 @@ func main() {
 	go func() {
 		for {
 			select {
-			case <-n1.StartElectionChan:
+			case <-n2.StartElectionChan:
 				state.BegginElection(n2)
 			}
 		}
@@ -58,7 +58,7 @@ func main() {
 	go func() {
 		for {
 			select {
-			case <-n1.StartElectionChan:
+			case <-n2.StartElectionChan:
 				state.BegginElection(n3)
 			}
 		}
