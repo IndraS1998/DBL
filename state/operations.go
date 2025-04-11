@@ -36,17 +36,20 @@ func BegginElection(n *Node) {
 	}
 
 	for i := 0; i < len(n.Peers); i++ {
-		select {
-		case granted := <-c:
-			if granted {
-				receivedVotes++
-			}
+		granted := <-c
+		if granted {
+			receivedVotes++
 		}
 	}
 	if receivedVotes > len(n.Peers)/2 {
 		fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
 		n.Mu.Lock()
 		n.Status = "leader"
+		n.LeaderAddress = n.Address
+		for _, peer := range n.Peers {
+			n.NextIndex[peer] = int32(len(n.LOG))
+			n.MatchIndex[peer] = 0
+		}
 		n.Mu.Unlock()
 		n.StopTimerChan <- true
 	} else {

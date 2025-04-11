@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"raft/state"
 	"raft/vote"
 	"sync"
+	"time"
 )
 
 func main() {
@@ -60,6 +62,90 @@ func main() {
 			select {
 			case <-n2.StartElectionChan:
 				state.BegginElection(n3)
+			}
+		}
+	}()
+
+	// Wait to become leader and erform leader duties
+	go func() {
+		for {
+			select {
+			case <-n1.BecomeLeaderChan:
+				go func() {
+					for {
+						select {
+						case <-n1.StopTimerChan:
+							fmt.Printf("stopping timer for %v \n", n1.Address)
+							return
+						default:
+							for _, peer := range n1.Peers {
+								p := peer // Capture loop variable
+								go func(p string) {
+									/*err := state.SendHeartbeat(n1, p)
+									if err != nil {
+										fmt.Printf("Failed to send heartbeat to %v: %v\n", p, err)
+									}*/
+								}(p)
+							}
+							time.Sleep(5 * time.Second)
+						}
+					}
+				}()
+			}
+		}
+	}()
+	go func() {
+		for {
+			select {
+			case <-n2.BecomeLeaderChan:
+				go func() {
+					for {
+						select {
+						case <-n2.StopTimerChan:
+							fmt.Printf("stopping timer for %v \n", n2.Address)
+							return
+						default:
+							for _, peer := range n2.Peers {
+								p := peer // Capture loop variable
+								go func(p string) {
+									/*err := state.SendHeartbeat(n1, p)
+									if err != nil {
+										fmt.Printf("Failed to send heartbeat to %v: %v\n", p, err)
+									}*/
+								}(p)
+							}
+							time.Sleep(5 * time.Second)
+						}
+					}
+				}()
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-n3.BecomeLeaderChan:
+				go func() {
+					for {
+						select {
+						case <-n3.StopTimerChan:
+							fmt.Printf("stopping timer for %v \n", n3.Address)
+							return
+						default:
+							for _, peer := range n3.Peers {
+								p := peer // Capture loop variable
+								go func(p string) {
+									/*err := state.SendHeartbeat(n1, p)
+									if err != nil {
+										fmt.Printf("Failed to send heartbeat to %v: %v\n", p, err)
+									}*/
+								}(p)
+							}
+							time.Sleep(5 * time.Second)
+						}
+					}
+				}()
 			}
 		}
 	}()
