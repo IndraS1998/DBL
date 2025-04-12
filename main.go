@@ -2,10 +2,9 @@ package main
 
 import (
 	"fmt"
+	"raft/rpc_server"
 	"raft/state"
-	"raft/vote"
 	"sync"
-	"time"
 )
 
 func main() {
@@ -19,28 +18,16 @@ func main() {
 	n2.PrintDetails()
 	n3 := state.NewNode("9003", peers)
 	n3.PrintDetails()
-	/*
-		n4 := state.NewNode("9004", peers)
-		n4.PrintDetails()
-		n5 := state.NewNode("9005", peers)
-		n5.PrintDetails()
-	*/
-	//start election response server
-	go vote.StartVoteListenServer(n1, &wg)
-	go vote.StartVoteListenServer(n2, &wg)
-	go vote.StartVoteListenServer(n3, &wg)
-	/*
-		go vote.StartVoteListenServer(n4, &wg)
-		go vote.StartVoteListenServer(n5, &wg)
-	*/
+
+	go rpc_server.StartRPCServerListener(n1, &wg)
+	go rpc_server.StartRPCServerListener(n2, &wg)
+	go rpc_server.StartRPCServerListener(n3, &wg)
+
 	//start various timers
 	n1.StartTimer(&wg)
 	n2.StartTimer(&wg)
 	n3.StartTimer(&wg)
-	/*
-		go n4.StartTimer(&wg)
-		go n5.StartTimer(&wg)
-	*/
+
 	go func() {
 		for {
 			select {
@@ -69,83 +56,44 @@ func main() {
 	// Wait to become leader and erform leader duties
 	go func() {
 		for {
+			fmt.Println("restarting heartbeat sending process! for: ", n1.Address)
 			select {
 			case <-n1.BecomeLeaderChan:
-				go func() {
-					for {
-						select {
-						case <-n1.StopTimerChan:
-							fmt.Printf("stopping timer for %v \n", n1.Address)
-							return
-						default:
-							for _, peer := range n1.Peers {
-								p := peer // Capture loop variable
-								go func(p string) {
-									/*err := state.SendHeartbeat(n1, p)
-									if err != nil {
-										fmt.Printf("Failed to send heartbeat to %v: %v\n", p, err)
-									}*/
-								}(p)
-							}
-							time.Sleep(5 * time.Second)
-						}
-					}
-				}()
+				fmt.Printf("%s about to send rpcs, \n", n1.Address)
+				state.SendHeartbeat(n1)
+			case <-n1.RevertToFollowerChan:
+				fmt.Printf("stopping timer for %v, revering to follower \n", n1.Address)
+				n1.ResetTimerChan <- true
+				return
 			}
 		}
 	}()
 	go func() {
 		for {
+			fmt.Println("restarting heartbeat sending process! for: ", n2.Address)
 			select {
 			case <-n2.BecomeLeaderChan:
-				go func() {
-					for {
-						select {
-						case <-n2.StopTimerChan:
-							fmt.Printf("stopping timer for %v \n", n2.Address)
-							return
-						default:
-							for _, peer := range n2.Peers {
-								p := peer // Capture loop variable
-								go func(p string) {
-									/*err := state.SendHeartbeat(n1, p)
-									if err != nil {
-										fmt.Printf("Failed to send heartbeat to %v: %v\n", p, err)
-									}*/
-								}(p)
-							}
-							time.Sleep(5 * time.Second)
-						}
-					}
-				}()
+				fmt.Printf("%s about to send rpcs, \n", n2.Address)
+				state.SendHeartbeat(n2)
+			case <-n2.RevertToFollowerChan:
+				fmt.Printf("stopping timer for %v, revering to follower \n", n2.Address)
+				n2.ResetTimerChan <- true
+				return
 			}
 		}
 	}()
 
 	go func() {
 		for {
+			fmt.Println("restarting heartbeat sending process! for: ", n3.Address)
 			select {
 			case <-n3.BecomeLeaderChan:
-				go func() {
-					for {
-						select {
-						case <-n3.StopTimerChan:
-							fmt.Printf("stopping timer for %v \n", n3.Address)
-							return
-						default:
-							for _, peer := range n3.Peers {
-								p := peer // Capture loop variable
-								go func(p string) {
-									/*err := state.SendHeartbeat(n1, p)
-									if err != nil {
-										fmt.Printf("Failed to send heartbeat to %v: %v\n", p, err)
-									}*/
-								}(p)
-							}
-							time.Sleep(5 * time.Second)
-						}
-					}
-				}()
+				fmt.Printf("%s about to send rpcs, \n", n3.Address)
+				state.SendHeartbeat(n3)
+			case <-n3.RevertToFollowerChan:
+				fmt.Printf("stopping timer for %v, revering to follower \n", n3.Address)
+				n3.ResetTimerChan <- true
+				return
 			}
 		}
 	}()

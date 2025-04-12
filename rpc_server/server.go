@@ -1,4 +1,4 @@
-package vote
+package rpc_server
 
 import (
 	"context"
@@ -37,7 +37,35 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 	}
 }
 
-func StartVoteListenServer(node *state.Node, wg *sync.WaitGroup) {
+func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
+	log.Printf("received AppendEntries from %v with term %v\n", req.LeaderId, req.Term)
+
+	s.node.Mu.Lock()
+	defer s.node.Mu.Unlock()
+
+	if req.Term < s.node.CurrentTerm {
+		return &pb.AppendEntriesResponse{Term: s.node.CurrentTerm, Success: false}, nil
+	}
+
+	// Update term and become follower if necessary
+	if req.Term > s.node.CurrentTerm {
+		s.node.CurrentTerm = req.Term
+		s.node.Status = "follower"
+		s.node.VotedFor = ""
+	}
+
+	// Reset timer because we received a heartbeat
+	s.node.ResetTimerChan <- true
+
+	// You should add log consistency checks here (prevLogIndex, prevLogTerm, etc.)
+	// For now, we just accept the entries and return success
+
+	// Append new entries to the log
+
+	return &pb.AppendEntriesResponse{Term: s.node.CurrentTerm, Success: true}, nil
+}
+
+func StartRPCServerListener(node *state.Node, wg *sync.WaitGroup) {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%v", node.Address))
 	if err != nil {
 		log.Fatalf("failed to listed: %v", err)

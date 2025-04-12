@@ -78,3 +78,50 @@ func performRPC(n *Node, peerAddress string) bool {
 	}
 	return vr.VoteGranted
 }
+
+// SendHeartbeat sends a heartbeat to the specified peer
+func SendHeartbeat(node *Node) (bool, error) {
+	ch := make(chan bool, len(node.Peers))
+	responses := int32(1)
+	for _, peer := range node.Peers {
+		go func(p string) {
+			res, _ := callAppendEntriesRPC(node, p)
+			ch <- res.Success
+		}(peer)
+	}
+	for i := 0; i < len(node.Peers); i++ {
+		granted := <-ch
+		if granted {
+			responses++
+		}
+	}
+	return responses > int32(len(node.Peers)/2), nil
+}
+
+func callAppendEntriesRPC(node *Node, peer string) (*pb.AppendEntriesResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	conn, err := grpc.Dial("localhost:"+peer, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	client := pb.NewRaftClient(conn)
+
+	req := &pb.AppendEntriesRequest{
+		Term:         node.CurrentTerm,
+		LeaderId:     node.Address,
+		PrevLogIndex: 0,                // placeholder for now
+		PrevLogTerm:  0,                // placeholder for now
+		Entries:      []*pb.LogEntry{}, // empty for heartbeat
+		LeaderCommit: int32(node.CommitIndex),
+	}
+
+	resp, err := client.AppendEntries(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}

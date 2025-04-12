@@ -13,13 +13,13 @@ type LogEntry struct {
 	Cmd  string
 }
 type Node struct {
-	CurrentTerm, CommitIndex, LastApplied                              int32
-	LeaderAddress, Status, Address, VotedFor                           string
-	Peers                                                              []string
-	Mu                                                                 sync.RWMutex
-	ResetTimerChan, StopTimerChan, StartElectionChan, BecomeLeaderChan chan bool
-	NextIndex, MatchIndex                                              map[string]int32
-	LOG                                                                []LogEntry
+	CurrentTerm, CommitIndex, LastApplied                                                    int32
+	LeaderAddress, Status, Address, VotedFor                                                 string
+	Peers                                                                                    []string
+	Mu                                                                                       sync.RWMutex
+	ResetTimerChan, StopTimerChan, StartElectionChan, BecomeLeaderChan, RevertToFollowerChan chan bool
+	NextIndex, MatchIndex                                                                    map[string]int32
+	LOG                                                                                      []LogEntry
 }
 
 // creates a new computational node
@@ -31,21 +31,22 @@ func NewNode(address string, allPeers []string) *Node {
 		}
 	}
 	return &Node{
-		CurrentTerm:       0,
-		VotedFor:          "",
-		CommitIndex:       0,
-		LastApplied:       0,
-		LeaderAddress:     "",
-		Status:            "follower",
-		Peers:             peers,
-		Address:           address,
-		ResetTimerChan:    make(chan bool),
-		StopTimerChan:     make(chan bool),
-		StartElectionChan: make(chan bool),
-		BecomeLeaderChan:  make(chan bool),
-		NextIndex:         make(map[string]int32),
-		MatchIndex:        make(map[string]int32),
-		LOG:               make([]LogEntry, 0),
+		CurrentTerm:          0,
+		VotedFor:             "",
+		CommitIndex:          0,
+		LastApplied:          0,
+		LeaderAddress:        "",
+		Status:               "follower",
+		Peers:                peers,
+		Address:              address,
+		ResetTimerChan:       make(chan bool, 1),
+		StopTimerChan:        make(chan bool, 1),
+		StartElectionChan:    make(chan bool, 1),
+		BecomeLeaderChan:     make(chan bool, 1),
+		RevertToFollowerChan: make(chan bool, 1),
+		NextIndex:            make(map[string]int32),
+		MatchIndex:           make(map[string]int32),
+		LOG:                  make([]LogEntry, 0),
 	}
 }
 
@@ -77,37 +78,6 @@ func (n *Node) StartTimer(wg *sync.WaitGroup) {
 	}()
 }
 
-/*
-	func SendHeartbeat(n *Node, peer string) error {
-	    conn, err := grpc.Dial(fmt.Sprintf(":%v", peer), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	    if err != nil {
-	        return fmt.Errorf("failed to connect to peer %v: %v", peer, err)
-	    }
-	    defer conn.Close()
-
-	    client := pb.NewRaftClient(conn)
-
-	    // Create an empty AppendEntriesRequest as a heartbeat
-	    req := &pb.AppendEntriesRequest{
-	        Term:         n.CurrentTerm,
-	        LeaderId:     n.Address,
-	        PrevLogIndex: int32(len(n.LOG) - 1),
-	        PrevLogTerm:  n.LOG[len(n.LOG)-1].Term,
-	        Entries:      nil, // No entries, just a heartbeat
-	        LeaderCommit: n.CommitIndex,
-	    }
-
-	    ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	    defer cancel()
-
-	    _, err = client.AppendEntries(ctx, req)
-	    if err != nil {
-	        return fmt.Errorf("failed to send heartbeat to peer %v: %v", peer, err)
-	    }
-
-	    return nil
-	}
-*/
 func (n *Node) PrintDetails() {
 	fmt.Println("======================================")
 	fmt.Printf("Address: %v, currentTerm : %v, Voted For: %v, Commit Index: %v, Last Applied: %v \n",
