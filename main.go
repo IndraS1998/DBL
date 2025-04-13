@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
+	"raft/rpc_server"
 	"raft/state"
-	"raft/vote"
 	"sync"
+	"time"
 )
 
 func main() {
@@ -17,28 +19,16 @@ func main() {
 	n2.PrintDetails()
 	n3 := state.NewNode("9003", peers)
 	n3.PrintDetails()
-	/*
-		n4 := state.NewNode("9004", peers)
-		n4.PrintDetails()
-		n5 := state.NewNode("9005", peers)
-		n5.PrintDetails()
-	*/
-	//start election response server
-	go vote.StartVoteListenServer(n1, &wg)
-	go vote.StartVoteListenServer(n2, &wg)
-	go vote.StartVoteListenServer(n3, &wg)
-	/*
-		go vote.StartVoteListenServer(n4, &wg)
-		go vote.StartVoteListenServer(n5, &wg)
-	*/
+
+	go rpc_server.StartRPCServerListener(n1, &wg)
+	go rpc_server.StartRPCServerListener(n2, &wg)
+	go rpc_server.StartRPCServerListener(n3, &wg)
+
 	//start various timers
 	n1.StartTimer(&wg)
 	n2.StartTimer(&wg)
 	n3.StartTimer(&wg)
-	/*
-		go n4.StartTimer(&wg)
-		go n5.StartTimer(&wg)
-	*/
+
 	go func() {
 		for {
 			select {
@@ -60,6 +50,111 @@ func main() {
 			select {
 			case <-n2.StartElectionChan:
 				state.BegginElection(n3)
+			}
+		}
+	}()
+
+	// Wait to become leader and erform leader duties
+	go func() {
+		for {
+			select {
+			case <-n1.BecomeLeaderChan:
+				fmt.Printf("%s became leader. Starting heartbeat loop.\n", n1.Address)
+
+				ticker := time.NewTicker(5 * time.Second) // send every 100ms
+				defer ticker.Stop()
+
+			heartbeatLoop:
+				for {
+					select {
+					case <-ticker.C:
+						ok, err := state.SendHeartbeat(n1)
+						if err != nil {
+							fmt.Printf("Error sending heartbeat: %v\n", err)
+						}
+						if !ok {
+							fmt.Printf("%s failed to maintain majority, stepping down.\n", n1.Address)
+							break heartbeatLoop
+						}
+					case <-n1.RevertToFollowerChan:
+						fmt.Printf("Reverting %v to follower\n", n1.Address)
+						n1.ResetTimerChan <- true
+						break heartbeatLoop
+					}
+				}
+
+			case <-n1.RevertToFollowerChan:
+				// fallback just in case Revert is received when not leader
+				n1.ResetTimerChan <- true
+			}
+		}
+	}()
+	go func() {
+		for {
+			select {
+			case <-n2.BecomeLeaderChan:
+				fmt.Printf("%s became leader. Starting heartbeat loop.\n", n1.Address)
+
+				ticker := time.NewTicker(100 * time.Millisecond) // send every 100ms
+				defer ticker.Stop()
+
+			heartbeatLoop:
+				for {
+					select {
+					case <-ticker.C:
+						ok, err := state.SendHeartbeat(n2)
+						if err != nil {
+							fmt.Printf("Error sending heartbeat: %v\n", err)
+						}
+						if !ok {
+							fmt.Printf("%s failed to maintain majority, stepping down.\n", n2.Address)
+							break heartbeatLoop
+						}
+					case <-n2.RevertToFollowerChan:
+						fmt.Printf("Reverting %v to follower\n", n2.Address)
+						n2.ResetTimerChan <- true
+						break heartbeatLoop
+					}
+				}
+
+			case <-n2.RevertToFollowerChan:
+				// fallback just in case Revert is received when not leader
+				n2.ResetTimerChan <- true
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-n3.BecomeLeaderChan:
+				fmt.Printf("%s became leader. Starting heartbeat loop.\n", n3.Address)
+
+				ticker := time.NewTicker(5 * time.Second) // send every 100ms
+				defer ticker.Stop()
+
+			heartbeatLoop:
+				for {
+					select {
+					case <-ticker.C:
+						ok, err := state.SendHeartbeat(n3)
+						if err != nil {
+							fmt.Printf("Error sending heartbeat: %v\n", err)
+						}
+						if !ok {
+							fmt.Printf("%s failed to maintain majority, stepping down.\n", n3.Address)
+							break heartbeatLoop
+						}
+					case <-n3.RevertToFollowerChan:
+						fmt.Printf("Reverting %v to follower\n", n3.Address)
+						n3.ResetTimerChan <- true
+						break heartbeatLoop
+					}
+				}
+
+			case <-n3.RevertToFollowerChan:
+				// fallback just in case Revert is received when not leader
+				n3.ResetTimerChan <- true
 			}
 		}
 	}()
