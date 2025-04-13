@@ -38,7 +38,7 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 }
 
 func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
-	log.Printf("received AppendEntries from %v with term %v\n", req.LeaderId, req.Term)
+	log.Printf("%v received AppendEntries from %v with term %v\n", s.node.Address, req.LeaderId, req.Term)
 
 	s.node.Mu.Lock()
 	defer s.node.Mu.Unlock()
@@ -48,15 +48,12 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	}
 
 	// Update term and become follower if necessary
-	if req.Term > s.node.CurrentTerm {
-		s.node.CurrentTerm = req.Term
-		s.node.Status = "follower"
-		s.node.VotedFor = ""
-	}
+	s.node.CurrentTerm = req.Term
+	s.node.LeaderAddress = req.LeaderId
 
 	// Reset timer because we received a heartbeat
 	s.node.ResetTimerChan <- true
-
+	s.node.PrintDetails()
 	// You should add log consistency checks here (prevLogIndex, prevLogTerm, etc.)
 	// For now, we just accept the entries and return success
 
