@@ -50,7 +50,7 @@ func NewNode(address string, allPeers []string) *Node {
 	}
 }
 
-// election timer thread #1, starts election when timer elapses
+// StartTimer starts a timer for the node and waits for a timeout to start election or an RPC to reset the timer
 func (n *Node) StartTimer(wg *sync.WaitGroup) {
 	go func() {
 		for {
@@ -76,6 +76,74 @@ func (n *Node) StartTimer(wg *sync.WaitGroup) {
 
 		}
 	}()
+}
+
+// BegginElection is called when a node times out and starts an election
+func (n *Node) BegginElection() {
+
+	n.Mu.Lock()
+	n.CurrentTerm++
+	n.Status = "candidate"
+	n.VotedFor = n.Address
+	receivedVotes := 1
+	n.Mu.Unlock()
+	// send request vote to all peers
+
+	c := make(chan bool, len(n.Peers))
+	/*
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+	*/
+	for _, peer := range n.Peers {
+		go func(p string) {
+			VoteGranted := requestVoteRPCStub(n, p)
+			c <- VoteGranted
+		}(peer)
+	}
+
+	for i := 0; i < len(n.Peers); i++ {
+		granted := <-c
+		if granted {
+			receivedVotes++
+		}
+	}
+	if receivedVotes > len(n.Peers)/2 {
+		fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
+		n.Mu.Lock()
+		n.Status = "leader"
+		n.LeaderAddress = n.Address
+		for _, peer := range n.Peers {
+			n.NextIndex[peer] = int32(len(n.LOG))
+			n.MatchIndex[peer] = 0
+		}
+		n.Mu.Unlock()
+		n.StopTimerChan <- true
+	} else {
+		n.Mu.Lock()
+		n.Status = "follower"
+		n.Mu.Unlock()
+		n.ResetTimerChan <- true
+		fmt.Printf("received votes %v , %v will revert to follower \n", receivedVotes, n.Address)
+	}
+}
+
+// AppendEntry sends a heartbeat/appendEntry RPCs to all peers and waits for a majority to respond
+func (node *Node) AppendEntry() (bool, error) {
+	ch := make(chan bool, len(node.Peers))
+	responses := int32(1)
+	for _, peer := range node.Peers {
+		go func(p string) {
+			res, _ := appendEntryRPCStub(node, p)
+			ch <- res.Success
+		}(peer)
+	}
+	for i := 0; i < len(node.Peers); i++ {
+		granted := <-ch
+		if granted {
+			responses++
+		}
+	}
+	return responses > int32(len(node.Peers)/2), nil
 }
 
 func (n *Node) PrintDetails() {

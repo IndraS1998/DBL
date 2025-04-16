@@ -33,7 +33,7 @@ func main() {
 		for {
 			select {
 			case <-n1.StartElectionChan:
-				state.BegginElection(n1)
+				n1.BegginElection()
 			}
 		}
 	}()
@@ -41,15 +41,15 @@ func main() {
 		for {
 			select {
 			case <-n2.StartElectionChan:
-				state.BegginElection(n2)
+				n2.BegginElection()
 			}
 		}
 	}()
 	go func() {
 		for {
 			select {
-			case <-n2.StartElectionChan:
-				state.BegginElection(n3)
+			case <-n3.StartElectionChan:
+				n3.BegginElection()
 			}
 		}
 	}()
@@ -67,7 +67,7 @@ func main() {
 					default:
 
 						time.Sleep(5 * time.Second)
-						ok, err := state.SendHeartbeat(n1)
+						ok, err := n1.AppendEntry()
 						if err != nil {
 							fmt.Printf("Error sending heartbeat: %v\n", err)
 						}
@@ -98,7 +98,7 @@ func main() {
 					select {
 					default:
 						time.Sleep(5 * time.Second)
-						ok, err := state.SendHeartbeat(n2)
+						ok, err := n2.AppendEntry()
 						if err != nil {
 							fmt.Printf("Error sending heartbeat: %v\n", err)
 						}
@@ -131,7 +131,7 @@ func main() {
 					select {
 					default:
 						time.Sleep(5 * time.Second)
-						ok, err := state.SendHeartbeat(n3)
+						ok, err := n3.AppendEntry()
 						if err != nil {
 							fmt.Printf("Error sending heartbeat: %v\n", err)
 						}
