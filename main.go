@@ -61,13 +61,12 @@ func main() {
 			case <-n1.BecomeLeaderChan:
 				fmt.Printf("%s became leader. Starting heartbeat loop.\n", n1.Address)
 
-				ticker := time.NewTicker(5 * time.Second) // send every 100ms
-				defer ticker.Stop()
-
 			heartbeatLoop:
 				for {
 					select {
-					case <-ticker.C:
+					default:
+
+						time.Sleep(5 * time.Second)
 						ok, err := state.SendHeartbeat(n1)
 						if err != nil {
 							fmt.Printf("Error sending heartbeat: %v\n", err)
@@ -94,14 +93,11 @@ func main() {
 			select {
 			case <-n2.BecomeLeaderChan:
 				fmt.Printf("%s became leader. Starting heartbeat loop.\n", n1.Address)
-
-				ticker := time.NewTicker(100 * time.Millisecond) // send every 100ms
-				defer ticker.Stop()
-
 			heartbeatLoop:
 				for {
 					select {
-					case <-ticker.C:
+					default:
+						time.Sleep(5 * time.Second)
 						ok, err := state.SendHeartbeat(n2)
 						if err != nil {
 							fmt.Printf("Error sending heartbeat: %v\n", err)
@@ -130,13 +126,11 @@ func main() {
 			case <-n3.BecomeLeaderChan:
 				fmt.Printf("%s became leader. Starting heartbeat loop.\n", n3.Address)
 
-				ticker := time.NewTicker(5 * time.Second) // send every 100ms
-				defer ticker.Stop()
-
 			heartbeatLoop:
 				for {
 					select {
-					case <-ticker.C:
+					default:
+						time.Sleep(5 * time.Second)
 						ok, err := state.SendHeartbeat(n3)
 						if err != nil {
 							fmt.Printf("Error sending heartbeat: %v\n", err)

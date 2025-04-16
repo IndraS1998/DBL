@@ -23,8 +23,8 @@ func NewServer(node *state.Node) *server {
 }
 
 func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	log.Printf("candidate term: %v candidateId: %v \n", vr.Term, vr.CandidateId)
-	if vr.GetTerm() > s.node.CurrentTerm && len(s.node.VotedFor) == 0 {
+	log.Printf("received vote request from candidateId: %v with term term: %v  \n", vr.CandidateId, vr.Term)
+	if vr.GetTerm() > s.node.CurrentTerm {
 		s.node.Mu.Lock()
 		s.node.CurrentTerm = vr.GetTerm()
 		s.node.VotedFor = vr.GetCandidateId()
