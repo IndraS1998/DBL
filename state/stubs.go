@@ -23,7 +23,12 @@ func requestVoteRPCStub(n *Node, peerAddress string) bool {
 	c := pb.NewRaftClient(con)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	vr, err := c.RequestVote(ctx, &pb.RequestVoteRequest{Term: n.CurrentTerm,
+	ct, e := n.GetCurrentTerm()
+	if e != nil {
+		log.Printf("could not get current term: %v", err)
+		return false
+	}
+	vr, err := c.RequestVote(ctx, &pb.RequestVoteRequest{Term: ct,
 		CandidateId: n.Address, LastLogIndex: n.CommitIndex, LastLogTerm: n.LastApplied})
 	if err != nil {
 		log.Printf("could not greet: %v", err)
@@ -43,9 +48,13 @@ func appendEntryRPCStub(node *Node, peer string) (*pb.AppendEntriesResponse, err
 	defer conn.Close()
 
 	client := pb.NewRaftClient(conn)
-
+	ct, e := node.GetCurrentTerm()
+	if e != nil {
+		log.Printf("could not get current term: %v", err)
+		return nil, e
+	}
 	req := &pb.AppendEntriesRequest{
-		Term:         node.CurrentTerm,
+		Term:         ct,
 		LeaderId:     node.Address,
 		PrevLogIndex: 0,                // placeholder for now
 		PrevLogTerm:  0,                // placeholder for now

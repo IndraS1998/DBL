@@ -24,32 +24,51 @@ func NewServer(node *state.Node) *server {
 
 func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
 	log.Printf("received vote request from candidateId: %v with term term: %v  \n", vr.CandidateId, vr.Term)
-	if vr.GetTerm() > s.node.CurrentTerm {
-		s.node.Mu.Lock()
-		s.node.CurrentTerm = vr.GetTerm()
-		s.node.VotedFor = vr.GetCandidateId()
+	ct, e := s.node.GetCurrentTerm()
+	if e != nil {
+		log.Printf("could not get current term: %v", e)
+		return nil, e
+	}
+	if vr.GetTerm() > ct {
+		er := s.node.SetCurrentTerm(vr.GetTerm())
+		if er != nil {
+			log.Printf("could not set current term: %v", er)
+			return nil, er
+		}
+		err := s.node.SetVotedFor(vr.GetCandidateId())
+		if err != nil {
+			log.Printf("could not set voted for: %v", err)
+			return nil, err
+		}
 		s.node.ResetTimerChan <- true
-		s.node.Mu.Unlock()
 		s.node.PrintDetails()
-		return &pb.RequestVoteResponse{Term: s.node.CurrentTerm, VoteGranted: true}, nil
+		return &pb.RequestVoteResponse{Term: ct, VoteGranted: true}, nil
 	} else {
-		return &pb.RequestVoteResponse{Term: s.node.CurrentTerm, VoteGranted: false}, nil
+		return &pb.RequestVoteResponse{Term: ct, VoteGranted: false}, nil
 	}
 }
 
 func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	log.Printf("%v received AppendEntries from %v with term %v\n", s.node.Address, req.LeaderId, req.Term)
+	ct, e := s.node.GetCurrentTerm()
+	if e != nil {
+		log.Printf("could not get current term: %v", e)
+		return nil, e
+	}
 
-	s.node.Mu.Lock()
-	defer s.node.Mu.Unlock()
-
-	if req.Term < s.node.CurrentTerm {
-		return &pb.AppendEntriesResponse{Term: s.node.CurrentTerm, Success: false}, nil
+	if req.Term < ct {
+		return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
 	}
 
 	// Update term and become follower if necessary
-	s.node.CurrentTerm = req.Term
+	er := s.node.SetCurrentTerm(req.Term)
+	if er != nil {
+		log.Printf("could not set current term: %v", er)
+		return nil, er
+	}
+	s.node.Mu.Lock()
 	s.node.LeaderAddress = req.LeaderId
+	s.node.Mu.Unlock()
 
 	// Reset timer because we received a heartbeat
 	s.node.ResetTimerChan <- true
@@ -59,7 +78,12 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 
 	// Append new entries to the log
 
-	return &pb.AppendEntriesResponse{Term: s.node.CurrentTerm, Success: true}, nil
+	uct, e1 := s.node.GetCurrentTerm()
+	if e1 != nil {
+		log.Printf("could not get current term: %v", e1)
+		return nil, e1
+	}
+	return &pb.AppendEntriesResponse{Term: uct, Success: true}, nil
 }
 
 func StartRPCServerListener(node *state.Node, wg *sync.WaitGroup) {

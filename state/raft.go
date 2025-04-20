@@ -8,18 +8,15 @@ import (
 	"time"
 )
 
-type LogEntry struct {
-	Term int32
-	Cmd  string
-}
 type Node struct {
-	CurrentTerm, CommitIndex, LastApplied                                                    int32
-	LeaderAddress, Status, Address, VotedFor                                                 string
+	CommitIndex, LastApplied                                                                 int32
+	LeaderAddress, Status, Address                                                           string
 	Peers                                                                                    []string
 	Mu                                                                                       sync.RWMutex
 	ResetTimerChan, StopTimerChan, StartElectionChan, BecomeLeaderChan, RevertToFollowerChan chan bool
-	NextIndex, MatchIndex                                                                    map[string]int32
-	LOG                                                                                      []LogEntry
+	MatchIndex                                                                               map[string]int32
+	NextIndex                                                                                map[string]int64
+	*PersistentState
 }
 
 // creates a new computational node
@@ -30,9 +27,12 @@ func NewNode(address string, allPeers []string) *Node {
 			peers = append(peers, val)
 		}
 	}
+	ps, err := InitPersistentState(fmt.Sprintf("%s.db", address))
+	if err != nil {
+		fmt.Println("Error initializing persistent state:", err)
+		return nil
+	}
 	return &Node{
-		CurrentTerm:          0,
-		VotedFor:             "",
 		CommitIndex:          0,
 		LastApplied:          0,
 		LeaderAddress:        "",
@@ -44,9 +44,9 @@ func NewNode(address string, allPeers []string) *Node {
 		StartElectionChan:    make(chan bool, 1),
 		BecomeLeaderChan:     make(chan bool, 1),
 		RevertToFollowerChan: make(chan bool, 1),
-		NextIndex:            make(map[string]int32),
+		NextIndex:            make(map[string]int64),
 		MatchIndex:           make(map[string]int32),
-		LOG:                  make([]LogEntry, 0),
+		PersistentState:      ps,
 	}
 }
 
@@ -81,10 +81,22 @@ func (n *Node) StartTimer(wg *sync.WaitGroup) {
 // BegginElection is called when a node times out and starts an election
 func (n *Node) BegginElection() {
 
+	t, err := n.GetCurrentTerm()
+	if err != nil {
+		fmt.Println("Error getting current term:", err)
+		return
+	}
+	err = n.SetCurrentTerm(t + 1)
+	if err != nil {
+		fmt.Println("Error setting current term:", err)
+		return
+	}
+	err = n.SetVotedFor(n.Address)
+	if err != nil {
+		fmt.Println("Error setting vote:", err)
+		return
+	}
 	n.Mu.Lock()
-	n.CurrentTerm++
-	n.Status = "candidate"
-	n.VotedFor = n.Address
 	receivedVotes := 1
 	n.Mu.Unlock()
 	// send request vote to all peers
@@ -109,11 +121,16 @@ func (n *Node) BegginElection() {
 	}
 	if receivedVotes > len(n.Peers)/2 {
 		fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
+		logCount, e := n.GetLogLengh()
+		if e != nil {
+			fmt.Println("Error getting log length:", e.Error())
+			return
+		}
 		n.Mu.Lock()
 		n.Status = "leader"
 		n.LeaderAddress = n.Address
 		for _, peer := range n.Peers {
-			n.NextIndex[peer] = int32(len(n.LOG))
+			n.NextIndex[peer] = logCount
 			n.MatchIndex[peer] = 0
 		}
 		n.Mu.Unlock()
@@ -147,9 +164,19 @@ func (node *Node) AppendEntry() (bool, error) {
 }
 
 func (n *Node) PrintDetails() {
+	ct, err := n.GetCurrentTerm()
+	if err != nil {
+		fmt.Println("Error getting current term:", err)
+		return
+	}
+	vf, err1 := n.GetVotedFor()
+	if err1 != nil {
+		fmt.Println("Error getting voted for:", err1)
+		return
+	}
 	fmt.Println("======================================")
 	fmt.Printf("Address: %v, currentTerm : %v, Voted For: %v, Commit Index: %v, Last Applied: %v \n",
-		n.Address, n.CurrentTerm, n.VotedFor, n.CommitIndex, n.LastApplied)
+		n.Address, ct, vf, n.CommitIndex, n.LastApplied)
 	fmt.Printf(" Leader Adress : %v, Status: %v, Peers: %v \n",
 		n.LeaderAddress, n.Status, n.Peers)
 	fmt.Println("=======================================")
