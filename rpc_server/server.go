@@ -2,6 +2,7 @@ package rpc_server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -11,6 +12,7 @@ import (
 	"raft/state"
 
 	"google.golang.org/grpc"
+	"gorm.io/gorm"
 )
 
 type server struct {
@@ -50,14 +52,39 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 
 func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	log.Printf("%v received AppendEntries from %v with term %v\n", s.node.Address, req.LeaderId, req.Term)
+
+	// Check if the term is less than the current term
 	ct, e := s.node.GetCurrentTerm()
 	if e != nil {
 		log.Printf("could not get current term: %v", e)
 		return nil, e
 	}
-
 	if req.Term < ct {
 		return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
+	}
+
+	// validating prevLogIndex and term
+
+	// if prevLogIndex = 0? i still need to check the log lengh and ensure it is also 0
+	if req.PrevLogIndex == 0 {
+		logLength, _ := s.node.GetLogLength()
+		if logLength != 0 {
+			log.Printf("leader thinks prev log is 0 while it is %v", logLength)
+			return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
+		}
+	} else {
+		// get log entry at point prevLogIndex
+		logEntry, err := s.node.GetLogEntry(int(req.PrevLogIndex))
+		// if there is no entry at that point, return false [hint use gorm.RecordNotFound]
+		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("no such record exists with the index %v", req.PrevLogIndex)
+			return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
+		}
+		// if there is an entry at that index but its term does not match prevLogTerm, return false
+		if logEntry.Term != req.PrevLogTerm {
+			log.Printf("the entry at index : %v, has term: %v but term : %v was provided", req.PrevLogIndex, logEntry.Term, req.PrevLogTerm)
+			return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
+		}
 	}
 
 	// Update term and become follower if necessary
@@ -73,8 +100,8 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	// Reset timer because we received a heartbeat
 	s.node.ResetTimerChan <- true
 	s.node.PrintDetails()
-	// You should add log consistency checks here (prevLogIndex, prevLogTerm, etc.)
-	// For now, we just accept the entries and return success
+
+	// log matching property logic will go here
 
 	// Append new entries to the log
 	for _, entry := range req.Entries {
@@ -84,6 +111,20 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 			return nil, err
 		}
 	}
+
+	// Update commit index
+	if req.LeaderCommit > s.node.CommitIndex {
+		logLength, _ := s.node.GetLogLength()
+		s.node.Mu.Lock()
+		if req.LeaderCommit < int32(logLength) {
+			s.node.CommitIndex = req.LeaderCommit
+		} else {
+			s.node.CommitIndex = int32(logLength)
+		}
+		s.node.Mu.Unlock()
+	}
+
+	// Print log entries after appending
 	ent, e2 := s.node.GetAllLogEntries()
 	if e2 != nil {
 		log.Printf("could not get all log entries: %v", e2)

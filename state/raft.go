@@ -2,15 +2,13 @@
 package state
 
 import (
-	"errors"
+	//"errors"
 	"fmt"
 	"log"
 	"math/rand"
 	"raft/custom_test"
 	"sync"
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type Node struct {
@@ -126,7 +124,7 @@ func (n *Node) BegginElection() {
 	}
 	if receivedVotes > len(n.Peers)/2 {
 		fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
-		logCount, e := n.GetLogLengh()
+		logCount, e := n.GetLogLength()
 		if e != nil {
 			fmt.Println("Error getting log length:", e.Error())
 			return
@@ -135,7 +133,7 @@ func (n *Node) BegginElection() {
 		n.Status = "leader"
 		n.LeaderAddress = n.Address
 		for _, peer := range n.Peers {
-			n.NextIndex[peer] = logCount
+			n.NextIndex[peer] = logCount + 1
 			n.MatchIndex[peer] = 0
 		}
 		n.Mu.Unlock()
@@ -166,40 +164,36 @@ func (node *Node) AppendEntry() (bool, error) {
 		return false, e
 	}
 
-	// get last log entry
-	lastLog, e1 := node.GetLastLogEntry()
-	emptyLog := false
-	if e1 != nil {
-		if errors.Is(e1, gorm.ErrRecordNotFound) {
-			emptyLog = true
-		} else {
-			log.Printf("could not get last log entry: %v", e1)
-			return false, e1
-		}
-	}
-	prevLogIndex := 0
-	prevLogTerm := int32(0)
-
-	if !emptyLog {
-		prevLogIndex = lastLog.Index
-		prevLogTerm = lastLog.Term
-	}
-
 	// append to personal log
-	go func(cmd []string) {
-		for _, c := range cmd {
-			err := node.AppendLogEntry(ct, c)
-			if err != nil {
-				log.Printf("could not append log entry: %v", err)
-				return
-			}
+	for _, c := range cmd {
+		err := node.AppendLogEntry(ct, c)
+		if err != nil {
+			log.Printf("could not append log entry: %v", err)
+			return false, err
 		}
-	}(cmd)
+	}
 
 	// send append entries to other peers
 	for _, peer := range node.Peers {
+		prevIndex := int32(node.NextIndex[peer] - 1)
+		prevTerm := int32(0)
+		if prevIndex > 0 {
+			//get the previous term
+			logEntry, err := node.GetLogEntry(int(prevIndex))
+			if err != nil {
+				log.Printf("could not get log entry: %v", err)
+				return false, err
+			}
+			//set preTerm to that gotten term
+			prevTerm = logEntry.Term
+		}
+		cmds, err := node.GetCommandsFromIndex(int(node.NextIndex[peer]))
+		if err != nil {
+			log.Printf("could not get commands from index: %v", err)
+			return false, err
+		}
 		go func(p string) {
-			res, _ := appendEntryRPCStub(node, p, cmd, ct, int32(prevLogIndex), prevLogTerm)
+			res, _ := appendEntryRPCStub(node, p, cmds, ct, prevIndex, prevTerm)
 			ch <- res.Success
 		}(peer)
 	}

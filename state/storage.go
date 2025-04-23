@@ -95,11 +95,23 @@ func (ps *PersistentState) DeleteLogEntriesFrom(index int) error {
 	return ps.DB.Where("`index` >= ?", index).Delete(&LogEntry{}).Error
 }
 
-func (ps *PersistentState) GetLogLengh() (int64, error) {
+func (ps *PersistentState) GetLogLength() (int64, error) {
 	var count int64
 	err := ps.DB.Model(&LogEntry{}).Count(&count).Error
 	if err != nil {
 		return 0, err
 	}
 	return count, nil
+}
+
+func (ps *PersistentState) GetCommandsFromIndex(startIndex int) ([]string, error) {
+	var commands []string
+	err := ps.DB.Model(&LogEntry{}).
+		Where("`index` >= ?", startIndex).
+		Order("`index` asc").
+		Pluck("cmd", &commands).Error
+	if err != nil {
+		return nil, err
+	}
+	return commands, nil
 }
