@@ -2,10 +2,15 @@
 package state
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"math/rand"
+	"raft/custom_test"
 	"sync"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Node struct {
@@ -148,12 +153,57 @@ func (n *Node) BegginElection() {
 func (node *Node) AppendEntry() (bool, error) {
 	ch := make(chan bool, len(node.Peers))
 	responses := int32(1)
+
+	// generate random commands
+	cmd := make([]string, 0)
+	for i := 0; i < 2; i++ {
+		cmd = append(cmd, custom_test.GenerateMessage())
+	}
+
+	ct, e := node.GetCurrentTerm()
+	if e != nil {
+		log.Printf("could not get current term: %v", e)
+		return false, e
+	}
+
+	// get last log entry
+	lastLog, e1 := node.GetLastLogEntry()
+	emptyLog := false
+	if e1 != nil {
+		if errors.Is(e1, gorm.ErrRecordNotFound) {
+			emptyLog = true
+		} else {
+			log.Printf("could not get last log entry: %v", e1)
+			return false, e1
+		}
+	}
+	prevLogIndex := 0
+	prevLogTerm := int32(0)
+
+	if !emptyLog {
+		prevLogIndex = lastLog.Index
+		prevLogTerm = lastLog.Term
+	}
+
+	// append to personal log
+	go func(cmd []string) {
+		for _, c := range cmd {
+			err := node.AppendLogEntry(ct, c)
+			if err != nil {
+				log.Printf("could not append log entry: %v", err)
+				return
+			}
+		}
+	}(cmd)
+
+	// send append entries to other peers
 	for _, peer := range node.Peers {
 		go func(p string) {
-			res, _ := appendEntryRPCStub(node, p)
+			res, _ := appendEntryRPCStub(node, p, cmd, ct, int32(prevLogIndex), prevLogTerm)
 			ch <- res.Success
 		}(peer)
 	}
+
 	for i := 0; i < len(node.Peers); i++ {
 		granted := <-ch
 		if granted {

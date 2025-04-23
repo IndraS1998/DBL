@@ -77,7 +77,19 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	// For now, we just accept the entries and return success
 
 	// Append new entries to the log
-
+	for _, entry := range req.Entries {
+		err := s.node.AppendLogEntry(entry.Term, entry.Command)
+		if err != nil {
+			log.Printf("could not insert log entry: %v", err)
+			return nil, err
+		}
+	}
+	ent, e2 := s.node.GetAllLogEntries()
+	if e2 != nil {
+		log.Printf("could not get all log entries: %v", e2)
+		return nil, e2
+	}
+	fmt.Printf("log entries after append for %v: %v", s.node.Address, ent)
 	uct, e1 := s.node.GetCurrentTerm()
 	if e1 != nil {
 		log.Printf("could not get current term: %v", e1)

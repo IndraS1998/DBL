@@ -79,14 +79,20 @@ func (ps *PersistentState) GetLogEntry(index int) (*LogEntry, error) {
 	return &entry, err
 }
 
-func (ps *PersistentState) GetLastLogIndex() (int, error) {
+func (ps *PersistentState) GetAllLogEntries() ([]LogEntry, error) {
+	var entries []LogEntry
+	err := ps.DB.Order("`index` asc").Find(&entries).Error
+	return entries, err
+}
+
+func (ps *PersistentState) GetLastLogEntry() (LogEntry, error) {
 	var entry LogEntry
-	err := ps.DB.Order("index desc").First(&entry).Error
-	return entry.Index, err
+	err := ps.DB.Order("`index` desc").First(&entry).Error
+	return entry, err
 }
 
 func (ps *PersistentState) DeleteLogEntriesFrom(index int) error {
-	return ps.DB.Where("index >= ?", index).Delete(&LogEntry{}).Error
+	return ps.DB.Where("`index` >= ?", index).Delete(&LogEntry{}).Error
 }
 
 func (ps *PersistentState) GetLogLengh() (int64, error) {
