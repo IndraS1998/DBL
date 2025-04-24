@@ -2,8 +2,12 @@
 package state
 
 import (
+	//"errors"
+	"context"
 	"fmt"
+	"log"
 	"math/rand"
+	"raft/custom_test"
 	"sync"
 	"time"
 )
@@ -121,7 +125,7 @@ func (n *Node) BegginElection() {
 	}
 	if receivedVotes > len(n.Peers)/2 {
 		fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
-		logCount, e := n.GetLogLengh()
+		logCount, e := n.GetLogLength()
 		if e != nil {
 			fmt.Println("Error getting log length:", e.Error())
 			return
@@ -130,7 +134,7 @@ func (n *Node) BegginElection() {
 		n.Status = "leader"
 		n.LeaderAddress = n.Address
 		for _, peer := range n.Peers {
-			n.NextIndex[peer] = logCount
+			n.NextIndex[peer] = logCount + 1
 			n.MatchIndex[peer] = 0
 		}
 		n.Mu.Unlock()
@@ -148,19 +152,102 @@ func (n *Node) BegginElection() {
 func (node *Node) AppendEntry() (bool, error) {
 	ch := make(chan bool, len(node.Peers))
 	responses := int32(1)
-	for _, peer := range node.Peers {
-		go func(p string) {
-			res, _ := appendEntryRPCStub(node, p)
-			ch <- res.Success
-		}(peer)
+
+	// Generate and append commands to leader's log
+	cmd := []string{}
+	for i := 0; i < 2; i++ {
+		cmd = append(cmd, custom_test.GenerateMessage())
 	}
-	for i := 0; i < len(node.Peers); i++ {
-		granted := <-ch
-		if granted {
-			responses++
+	ct, err := node.GetCurrentTerm()
+	if err != nil {
+		log.Printf("could not get current term: %v", err)
+		return false, err
+	}
+	for _, c := range cmd {
+		if err := node.AppendLogEntry(ct, c); err != nil {
+			log.Printf("could not append log entry: %v", err)
+			return false, err
 		}
 	}
-	return responses > int32(len(node.Peers)/2), nil
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var wg sync.WaitGroup
+
+	for _, peer := range node.Peers {
+		prevIndex := int32(node.NextIndex[peer] - 1)
+		prevTerm := int32(0)
+		if prevIndex > 0 {
+			entry, err := node.GetLogEntry(int(prevIndex))
+			if err != nil {
+				log.Printf("could not get log entry: %v", err)
+				return false, err
+			}
+			prevTerm = entry.Term
+		}
+
+		cmds, err := node.GetCommandsFromIndex(int(node.NextIndex[peer]))
+		if err != nil {
+			log.Printf("could not get commands from index: %v", err)
+			return false, err
+		}
+
+		wg.Add(1)
+		go func(p string, cmds []string, prevIndex, prevTerm int32) {
+			defer wg.Done()
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			res, _ := appendEntryRPCStub(node, p, cmds, ct, prevIndex, prevTerm)
+			if res.Success {
+				node.Mu.Lock()
+				node.NextIndex[p] += int64(len(cmds))
+				node.MatchIndex[p] += int32(len(cmds))
+				node.Mu.Unlock()
+			} else if res.Term > ct {
+				cancel() // Trigger early exit due to stale term
+			} else {
+				node.Mu.Lock()
+				node.NextIndex[p]--
+				node.Mu.Unlock()
+			}
+
+			select {
+			case <-ctx.Done():
+			case ch <- res.Success:
+			}
+		}(peer, cmds, prevIndex, prevTerm)
+	}
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for {
+		select {
+		case granted, ok := <-ch:
+			if !ok {
+				// All goroutines are done
+				if responses > int32(len(node.Peers)/2) {
+					lastEntry, _ := node.GetLastLogEntry()
+					node.Mu.Lock()
+					node.CommitIndex = int32(lastEntry.Index)
+					node.Mu.Unlock()
+				}
+				return responses > int32(len(node.Peers)/2), nil
+			}
+			if granted {
+				responses++
+			}
+		case <-ctx.Done():
+			// Early cancellation due to higher term
+			return false, nil
+		}
+	}
 }
 
 func (n *Node) PrintDetails() {

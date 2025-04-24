@@ -32,12 +32,13 @@ func requestVoteRPCStub(n *Node, peerAddress string) bool {
 		CandidateId: n.Address, LastLogIndex: n.CommitIndex, LastLogTerm: n.LastApplied})
 	if err != nil {
 		log.Printf("could not greet: %v", err)
+		return false
 	}
 	return vr.VoteGranted
 }
 
 // SendHeartbeat sends a heartbeat to a peer and returns true based on the response of the peer
-func appendEntryRPCStub(node *Node, peer string) (*pb.AppendEntriesResponse, error) {
+func appendEntryRPCStub(node *Node, peer string, cmd []string, ct, prevLogIndex, prevLogTerm int32) (*pb.AppendEntriesResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -48,17 +49,18 @@ func appendEntryRPCStub(node *Node, peer string) (*pb.AppendEntriesResponse, err
 	defer conn.Close()
 
 	client := pb.NewRaftClient(conn)
-	ct, e := node.GetCurrentTerm()
-	if e != nil {
-		log.Printf("could not get current term: %v", err)
-		return nil, e
+
+	entries := make([]*pb.LogEntry, 0)
+	for _, c := range cmd {
+		entries = append(entries, &pb.LogEntry{Term: ct, Command: c})
 	}
+
 	req := &pb.AppendEntriesRequest{
 		Term:         ct,
 		LeaderId:     node.Address,
-		PrevLogIndex: 0,                // placeholder for now
-		PrevLogTerm:  0,                // placeholder for now
-		Entries:      []*pb.LogEntry{}, // empty for heartbeat
+		PrevLogIndex: prevLogIndex,
+		PrevLogTerm:  prevLogTerm,
+		Entries:      entries, // empty for heartbeat
 		LeaderCommit: int32(node.CommitIndex),
 	}
 
