@@ -99,7 +99,6 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 
 	// Reset timer because we received a heartbeat
 	s.node.ResetTimerChan <- true
-	s.node.PrintDetails()
 
 	// log matching property logic will go here
 
@@ -116,14 +115,11 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	if req.LeaderCommit > s.node.CommitIndex {
 		logLength, _ := s.node.GetLogLength()
 		s.node.Mu.Lock()
-		if req.LeaderCommit < int32(logLength) {
-			s.node.CommitIndex = req.LeaderCommit
-		} else {
-			s.node.CommitIndex = int32(logLength)
-		}
+		s.node.CommitIndex = min(req.LeaderCommit, int32(logLength))
 		s.node.Mu.Unlock()
 	}
 
+	s.node.PrintDetails()
 	// Print log entries after appending
 	ent, e2 := s.node.GetAllLogEntries()
 	if e2 != nil {

@@ -3,6 +3,7 @@ package state
 
 import (
 	//"errors"
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -152,59 +153,101 @@ func (node *Node) AppendEntry() (bool, error) {
 	ch := make(chan bool, len(node.Peers))
 	responses := int32(1)
 
-	// generate random commands
-	cmd := make([]string, 0)
+	// Generate and append commands to leader's log
+	cmd := []string{}
 	for i := 0; i < 2; i++ {
 		cmd = append(cmd, custom_test.GenerateMessage())
 	}
-
-	ct, e := node.GetCurrentTerm()
-	if e != nil {
-		log.Printf("could not get current term: %v", e)
-		return false, e
+	ct, err := node.GetCurrentTerm()
+	if err != nil {
+		log.Printf("could not get current term: %v", err)
+		return false, err
 	}
-
-	// append to personal log
 	for _, c := range cmd {
-		err := node.AppendLogEntry(ct, c)
-		if err != nil {
+		if err := node.AppendLogEntry(ct, c); err != nil {
 			log.Printf("could not append log entry: %v", err)
 			return false, err
 		}
 	}
 
-	// send append entries to other peers
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var wg sync.WaitGroup
+
 	for _, peer := range node.Peers {
 		prevIndex := int32(node.NextIndex[peer] - 1)
 		prevTerm := int32(0)
 		if prevIndex > 0 {
-			//get the previous term
-			logEntry, err := node.GetLogEntry(int(prevIndex))
+			entry, err := node.GetLogEntry(int(prevIndex))
 			if err != nil {
 				log.Printf("could not get log entry: %v", err)
 				return false, err
 			}
-			//set preTerm to that gotten term
-			prevTerm = logEntry.Term
+			prevTerm = entry.Term
 		}
+
 		cmds, err := node.GetCommandsFromIndex(int(node.NextIndex[peer]))
 		if err != nil {
 			log.Printf("could not get commands from index: %v", err)
 			return false, err
 		}
-		go func(p string) {
+
+		wg.Add(1)
+		go func(p string, cmds []string, prevIndex, prevTerm int32) {
+			defer wg.Done()
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			res, _ := appendEntryRPCStub(node, p, cmds, ct, prevIndex, prevTerm)
-			ch <- res.Success
-		}(peer)
+			if res.Success {
+				node.Mu.Lock()
+				node.NextIndex[p] += int64(len(cmds))
+				node.MatchIndex[p] += int32(len(cmds))
+				node.Mu.Unlock()
+			} else if res.Term > ct {
+				cancel() // Trigger early exit due to stale term
+			} else {
+				node.Mu.Lock()
+				node.NextIndex[p]--
+				node.Mu.Unlock()
+			}
+
+			select {
+			case <-ctx.Done():
+			case ch <- res.Success:
+			}
+		}(peer, cmds, prevIndex, prevTerm)
 	}
 
-	for i := 0; i < len(node.Peers); i++ {
-		granted := <-ch
-		if granted {
-			responses++
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for {
+		select {
+		case granted, ok := <-ch:
+			if !ok {
+				// All goroutines are done
+				if responses > int32(len(node.Peers)/2) {
+					lastEntry, _ := node.GetLastLogEntry()
+					node.Mu.Lock()
+					node.CommitIndex = int32(lastEntry.Index)
+					node.Mu.Unlock()
+				}
+				return responses > int32(len(node.Peers)/2), nil
+			}
+			if granted {
+				responses++
+			}
+		case <-ctx.Done():
+			// Early cancellation due to higher term
+			return false, nil
 		}
 	}
-	return responses > int32(len(node.Peers)/2), nil
 }
 
 func (n *Node) PrintDetails() {
