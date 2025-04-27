@@ -34,6 +34,7 @@ func requestVoteRPCStub(n *Node, peerAddress string) bool {
 		log.Printf("could not greet: %v", err)
 		return false
 	}
+	// we need to revert immidiately to a follower if a node replied with a term atleast equal to the candidates term
 	return vr.VoteGranted
 }
 
