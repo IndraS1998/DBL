@@ -100,51 +100,69 @@ func (n *Node) BegginElection() {
 		fmt.Println("Error setting vote:", err)
 		return
 	}
-	n.Mu.Lock()
+	mu := sync.Mutex{}
 	receivedVotes := 1
-	n.Mu.Unlock()
-	// send request vote to all peers
 
 	c := make(chan bool, len(n.Peers))
-	/*
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-	*/
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
 	for _, peer := range n.Peers {
+		wg.Add(1)
 		go func(p string) {
-			VoteGranted := requestVoteRPCStub(n, p)
+			defer wg.Done()
+			VoteGranted := requestVoteRPCStub(n, p, cancel)
 			c <- VoteGranted
 		}(peer)
 	}
 
-	for i := 0; i < len(n.Peers); i++ {
-		granted := <-c
-		if granted {
-			receivedVotes++
-		}
-	}
-	if receivedVotes > len(n.Peers)/2 {
-		fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
-		logCount, e := n.GetLogLength()
-		if e != nil {
-			fmt.Println("Error getting log length:", e.Error())
+	// launch another go routine to wait for when all the wg have called Done to close the chan
+	go func() {
+		wg.Wait()
+		close(c)
+	}()
+
+	for {
+		select {
+		case granted, open := <-c:
+			if !open {
+				if receivedVotes > len(n.Peers)/2 {
+					fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
+					logCount, e := n.GetLogLength()
+					if e != nil {
+						fmt.Println("Error getting log length:", e.Error())
+						return
+					}
+					n.Mu.Lock()
+					n.Status = "leader"
+					n.LeaderAddress = n.Address
+					for _, peer := range n.Peers {
+						n.NextIndex[peer] = logCount + 1
+						n.MatchIndex[peer] = 0
+					}
+					n.Mu.Unlock()
+					n.StopTimerChan <- true
+					return
+				} else {
+					n.Mu.Lock()
+					n.Status = "follower"
+					n.Mu.Unlock()
+					n.ResetTimerChan <- true
+					fmt.Printf("received votes %v , %v will revert to follower \n", receivedVotes, n.Address)
+					return
+				}
+			} else if granted {
+				mu.Lock()
+				receivedVotes++
+				mu.Unlock()
+			}
+		case <-ctx.Done():
+			fmt.Println("some node had a higher term!")
+			n.RevertToFollowerChan <- true
 			return
 		}
-		n.Mu.Lock()
-		n.Status = "leader"
-		n.LeaderAddress = n.Address
-		for _, peer := range n.Peers {
-			n.NextIndex[peer] = logCount + 1
-			n.MatchIndex[peer] = 0
-		}
-		n.Mu.Unlock()
-		n.StopTimerChan <- true
-	} else {
-		n.Mu.Lock()
-		n.Status = "follower"
-		n.Mu.Unlock()
-		n.ResetTimerChan <- true
-		fmt.Printf("received votes %v , %v will revert to follower \n", receivedVotes, n.Address)
 	}
 }
 

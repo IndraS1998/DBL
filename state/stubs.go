@@ -13,7 +13,7 @@ import (
 )
 
 // requestVoteRPCStub sends a request vote RPC to the given peer address and returns true if the vote is granted
-func requestVoteRPCStub(n *Node, peerAddress string) bool {
+func requestVoteRPCStub(n *Node, peerAddress string, close context.CancelFunc) bool {
 	fmt.Printf("sending request vote to %v \n", peerAddress)
 	con, err := grpc.NewClient(fmt.Sprintf("localhost:%v", peerAddress), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -34,7 +34,10 @@ func requestVoteRPCStub(n *Node, peerAddress string) bool {
 		log.Printf("could not greet: %v", err)
 		return false
 	}
-	// we need to revert immidiately to a follower if a node replied with a term atleast equal to the candidates term
+	if vr.Term >= ct {
+		log.Printf("node %v has a higher term %v than %v", peerAddress, vr.Term, ct)
+		close()
+	}
 	return vr.VoteGranted
 }
 
