@@ -25,12 +25,12 @@ func NewServer(node *state.Node) *server {
 }
 
 func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	log.Printf("received vote request from candidateId: %v with term term: %v  \n", vr.CandidateId, vr.Term)
 	ct, e := s.node.GetCurrentTerm()
 	if e != nil {
 		log.Printf("could not get current term: %v", e)
 		return nil, e
 	}
+	s.node.ResetTimerChan <- true
 	if vr.GetTerm() > ct {
 		er := s.node.SetCurrentTerm(vr.GetTerm())
 		if er != nil {
@@ -42,7 +42,6 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 			log.Printf("could not set voted for: %v", err)
 			return nil, err
 		}
-		s.node.ResetTimerChan <- true
 		s.node.PrintDetails()
 		return &pb.RequestVoteResponse{Term: ct, VoteGranted: true}, nil
 	} else {
@@ -52,6 +51,7 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 
 func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	log.Printf("%v received AppendEntries from %v with term %v\n", s.node.Address, req.LeaderId, req.Term)
+	s.node.ResetTimerChan <- true
 
 	// Check if the term is less than the current term
 	ct, e := s.node.GetCurrentTerm()
@@ -69,7 +69,7 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	if req.PrevLogIndex == 0 {
 		logLength, _ := s.node.GetLogLength()
 		if logLength != 0 {
-			log.Printf("leader thinks prev log is 0 while it is %v", logLength)
+			log.Printf("message from: %s, leader thinks prev log is 0 while it is %v\n", s.node.Address, logLength)
 			return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
 		}
 	} else {
@@ -77,7 +77,14 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 		logEntry, err := s.node.GetLogEntry(int(req.PrevLogIndex))
 		// if there is no entry at that point, return false [hint use gorm.RecordNotFound]
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Printf("no such record exists with the index %v", req.PrevLogIndex)
+			log.Printf("no such record exists with the index %v\n", req.PrevLogIndex)
+			ent, e2 := s.node.GetAllLogEntries()
+			if e2 != nil {
+				log.Printf("could not get all log entries: %v", e2)
+				return nil, e2
+			}
+			log.Printf("log entries after append for %v: %v", s.node.Address, ent)
+
 			return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
 		}
 		// if there is an entry at that index but its term does not match prevLogTerm, return false
@@ -97,11 +104,6 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	s.node.LeaderAddress = req.LeaderId
 	s.node.Mu.Unlock()
 
-	// Reset timer because we received a heartbeat
-	s.node.ResetTimerChan <- true
-
-	// log matching property logic will go here
-
 	// Append new entries to the log
 	for _, entry := range req.Entries {
 		err := s.node.AppendLogEntry(entry.Term, entry.Command)
@@ -119,7 +121,6 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 		s.node.Mu.Unlock()
 	}
 
-	s.node.PrintDetails()
 	// Print log entries after appending
 	ent, e2 := s.node.GetAllLogEntries()
 	if e2 != nil {

@@ -100,152 +100,174 @@ func (n *Node) BegginElection() {
 		fmt.Println("Error setting vote:", err)
 		return
 	}
-	n.Mu.Lock()
+	mu := sync.Mutex{}
 	receivedVotes := 1
-	n.Mu.Unlock()
-	// send request vote to all peers
 
 	c := make(chan bool, len(n.Peers))
-	/*
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer cancel()
-	*/
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
 	for _, peer := range n.Peers {
+		wg.Add(1)
 		go func(p string) {
-			VoteGranted := requestVoteRPCStub(n, p)
+			defer wg.Done()
+			VoteGranted := requestVoteRPCStub(n, p, cancel)
 			c <- VoteGranted
 		}(peer)
 	}
 
-	for i := 0; i < len(n.Peers); i++ {
-		granted := <-c
-		if granted {
-			receivedVotes++
-		}
-	}
-	if receivedVotes > len(n.Peers)/2 {
-		fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
-		logCount, e := n.GetLogLength()
-		if e != nil {
-			fmt.Println("Error getting log length:", e.Error())
+	// launch another go routine to wait for when all the wg have called Done to close the chan
+	go func() {
+		wg.Wait()
+		close(c)
+	}()
+
+	for {
+		select {
+		case granted, open := <-c:
+			if !open {
+				if receivedVotes > len(n.Peers)/2 {
+					fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
+					logCount, e := n.GetLogLength()
+					if e != nil {
+						fmt.Println("Error getting log length:", e.Error())
+						return
+					}
+					n.Mu.Lock()
+					n.Status = "leader"
+					n.LeaderAddress = n.Address
+					for _, peer := range n.Peers {
+						n.NextIndex[peer] = logCount + 1
+						n.MatchIndex[peer] = 0
+					}
+					n.Mu.Unlock()
+					n.StopTimerChan <- true
+					return
+				} else {
+					n.Mu.Lock()
+					n.Status = "follower"
+					n.Mu.Unlock()
+					n.ResetTimerChan <- true
+					fmt.Printf("received votes %v , %v will revert to follower \n", receivedVotes, n.Address)
+					return
+				}
+			} else if granted {
+				mu.Lock()
+				receivedVotes++
+				mu.Unlock()
+			}
+		case <-ctx.Done():
+			fmt.Println("some node had a higher term!")
+			n.RevertToFollowerChan <- true
 			return
 		}
-		n.Mu.Lock()
-		n.Status = "leader"
-		n.LeaderAddress = n.Address
-		for _, peer := range n.Peers {
-			n.NextIndex[peer] = logCount + 1
-			n.MatchIndex[peer] = 0
-		}
-		n.Mu.Unlock()
-		n.StopTimerChan <- true
-	} else {
-		n.Mu.Lock()
-		n.Status = "follower"
-		n.Mu.Unlock()
-		n.ResetTimerChan <- true
-		fmt.Printf("received votes %v , %v will revert to follower \n", receivedVotes, n.Address)
 	}
 }
 
 // AppendEntry sends a heartbeat/appendEntry RPCs to all peers and waits for a majority to respond
-func (node *Node) AppendEntry() (bool, error) {
+func (node *Node) AppendEntry() {
 	ch := make(chan bool, len(node.Peers))
 	responses := int32(1)
 
 	// Generate and append commands to leader's log
 	cmd := []string{}
-	for i := 0; i < 2; i++ {
+	for i := 0; i < 1; i++ {
 		cmd = append(cmd, custom_test.GenerateMessage())
 	}
 	ct, err := node.GetCurrentTerm()
 	if err != nil {
 		log.Printf("could not get current term: %v", err)
-		return false, err
+		return
 	}
 	for _, c := range cmd {
 		if err := node.AppendLogEntry(ct, c); err != nil {
 			log.Printf("could not append log entry: %v", err)
-			return false, err
+			return
 		}
 	}
 
+	ent, e2 := node.GetAllLogEntries()
+	if e2 != nil {
+		log.Printf("could not get all log entries: %v\n", e2)
+		return
+	}
+	log.Printf("log entries after append for %v: %v \n", node.Address, ent)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
 	var wg sync.WaitGroup
 
 	for _, peer := range node.Peers {
-		prevIndex := int32(node.NextIndex[peer] - 1)
-		prevTerm := int32(0)
-		if prevIndex > 0 {
-			entry, err := node.GetLogEntry(int(prevIndex))
-			if err != nil {
-				log.Printf("could not get log entry: %v", err)
-				return false, err
-			}
-			prevTerm = entry.Term
-		}
-
-		cmds, err := node.GetCommandsFromIndex(int(node.NextIndex[peer]))
-		if err != nil {
-			log.Printf("could not get commands from index: %v", err)
-			return false, err
-		}
-
 		wg.Add(1)
-		go func(p string, cmds []string, prevIndex, prevTerm int32) {
+		go func(peer string) {
 			defer wg.Done()
-			select {
-			case <-ctx.Done():
-				return
-			default:
+
+			prevIndex := int32(node.NextIndex[peer] - 1)
+			prevTerm := int32(0)
+			//adjust the prevTerm based on the prevIndex
+			if prevIndex > 0 {
+				entry, err := node.GetLogEntry(int(prevIndex))
+				if err != nil {
+					log.Printf("could not get log entry: %v", err)
+
+				}
+				prevTerm = entry.Term
 			}
 
-			res, _ := appendEntryRPCStub(node, p, cmds, ct, prevIndex, prevTerm)
+			//fetch the actual commands based on the last commited entryso as to make the node be up to date
+			cmds, err := node.GetCommandsFromIndex(int(node.NextIndex[peer]))
+			if err != nil {
+				log.Printf("could not get commands from index: %v", err)
+			}
+			res, _ := appendEntryRPCStub(node, peer, cmds, ct, prevIndex, prevTerm)
 			if res.Success {
 				node.Mu.Lock()
-				node.NextIndex[p] += int64(len(cmds))
-				node.MatchIndex[p] += int32(len(cmds))
+				node.NextIndex[peer] += int64(len(cmds))
+				node.MatchIndex[peer] += int32(len(cmds))
 				node.Mu.Unlock()
+				ch <- true
 			} else if res.Term > ct {
 				cancel() // Trigger early exit due to stale term
 			} else {
 				node.Mu.Lock()
-				node.NextIndex[p]--
+				node.NextIndex[peer]--
 				node.Mu.Unlock()
+				ch <- false
 			}
-
-			select {
-			case <-ctx.Done():
-			case ch <- res.Success:
-			}
-		}(peer, cmds, prevIndex, prevTerm)
+		}(peer)
 	}
 
+	// launch another go routine to wait for when all the wg have called Done to close the chan
 	go func() {
 		wg.Wait()
 		close(ch)
 	}()
 
+	// evalution is done here
 	for {
 		select {
-		case granted, ok := <-ch:
-			if !ok {
+		case granted, open := <-ch:
+			if !open {
 				// All goroutines are done
 				if responses > int32(len(node.Peers)/2) {
 					lastEntry, _ := node.GetLastLogEntry()
 					node.Mu.Lock()
 					node.CommitIndex = int32(lastEntry.Index)
 					node.Mu.Unlock()
+					return
+				} else {
+					return
 				}
-				return responses > int32(len(node.Peers)/2), nil
 			}
 			if granted {
 				responses++
 			}
 		case <-ctx.Done():
-			// Early cancellation due to higher term
-			return false, nil
+			fmt.Println("some node had a higher term!")
+			node.RevertToFollowerChan <- true
 		}
 	}
 }

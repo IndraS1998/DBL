@@ -65,16 +65,8 @@ func main() {
 				for {
 					select {
 					default:
-
 						time.Sleep(5 * time.Second)
-						ok, err := n1.AppendEntry()
-						if err != nil {
-							fmt.Printf("Error sending heartbeat: %v\n", err)
-						}
-						if !ok {
-							fmt.Printf("%s failed to maintain majority, stepping down.\n", n1.Address)
-							break heartbeatLoop
-						}
+						n1.AppendEntry()
 					case <-n1.RevertToFollowerChan:
 						fmt.Printf("Reverting %v to follower\n", n1.Address)
 						n1.ResetTimerChan <- true
@@ -92,20 +84,14 @@ func main() {
 		for {
 			select {
 			case <-n2.BecomeLeaderChan:
-				fmt.Printf("%s became leader. Starting heartbeat loop.\n", n1.Address)
+				fmt.Printf("%s became leader. Starting heartbeat loop.\n", n2.Address)
 			heartbeatLoop:
 				for {
 					select {
 					default:
-						time.Sleep(5 * time.Second)
-						ok, err := n2.AppendEntry()
-						if err != nil {
-							fmt.Printf("Error sending heartbeat: %v\n", err)
-						}
-						if !ok {
-							fmt.Printf("%s failed to maintain majority, stepping down.\n", n2.Address)
-							break heartbeatLoop
-						}
+						time.Sleep(10 * time.Second)
+						n2.AppendEntry()
+
 					case <-n2.RevertToFollowerChan:
 						fmt.Printf("Reverting %v to follower\n", n2.Address)
 						n2.ResetTimerChan <- true
@@ -130,15 +116,8 @@ func main() {
 				for {
 					select {
 					default:
-						time.Sleep(5 * time.Second)
-						ok, err := n3.AppendEntry()
-						if err != nil {
-							fmt.Printf("Error sending heartbeat: %v\n", err)
-						}
-						if !ok {
-							fmt.Printf("%s failed to maintain majority, stepping down.\n", n3.Address)
-							break heartbeatLoop
-						}
+						time.Sleep(10 * time.Second)
+						n3.AppendEntry()
 					case <-n3.RevertToFollowerChan:
 						fmt.Printf("Reverting %v to follower\n", n3.Address)
 						n3.ResetTimerChan <- true
