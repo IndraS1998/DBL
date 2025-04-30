@@ -24,7 +24,7 @@ type Node struct {
 }
 
 // creates a new computational node
-func NewNode(address string, allPeers []string) *Node {
+func NewNode(address string, allPeers []string) (*Node, error) {
 	peers := make([]string, 0)
 	for _, val := range allPeers {
 		if val != address {
@@ -34,7 +34,7 @@ func NewNode(address string, allPeers []string) *Node {
 	ps, err := InitPersistentState(fmt.Sprintf("%s.db", address))
 	if err != nil {
 		fmt.Println("Error initializing persistent state:", err)
-		return nil
+		return nil, fmt.Errorf("could not initialize persistent state for %s, error: %w", address, err)
 	}
 	return &Node{
 		CommitIndex:          0,
@@ -51,7 +51,7 @@ func NewNode(address string, allPeers []string) *Node {
 		NextIndex:            make(map[string]int64),
 		MatchIndex:           make(map[string]int32),
 		PersistentState:      ps,
-	}
+	}, nil
 }
 
 // StartTimer starts a timer for the node and waits for a timeout to start election or an RPC to reset the timer
@@ -64,6 +64,7 @@ func (n *Node) StartTimer(wg *sync.WaitGroup) {
 			select {
 			case <-timer.C:
 				fmt.Printf("%v has timed out, starting election \n", n.Address)
+				timer.Stop()
 				n.StartElectionChan <- true
 			case <-n.ResetTimerChan:
 				fmt.Printf("%v has received an RPC, restarting timer \n", n.Address)
@@ -72,7 +73,7 @@ func (n *Node) StartTimer(wg *sync.WaitGroup) {
 				}
 				continue
 			case <-n.StopTimerChan:
-				fmt.Printf("%v has beacome a leader, stoping global timer \n", n.Address)
+				fmt.Printf("%v has become a leader, stoping global timer \n", n.Address)
 				n.BecomeLeaderChan <- true
 				timer.Stop()
 				return
@@ -83,7 +84,7 @@ func (n *Node) StartTimer(wg *sync.WaitGroup) {
 }
 
 // BegginElection is called when a node times out and starts an election
-func (n *Node) BegginElection() {
+func (n *Node) BeginElection() {
 
 	t, err := n.GetCurrentTerm()
 	if err != nil {
