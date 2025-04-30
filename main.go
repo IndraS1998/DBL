@@ -11,13 +11,24 @@ import (
 func main() {
 	peers := []string{"9001", "9002", "9003"}
 	wg := sync.WaitGroup{}
-	wg.Add(2)
+	wg.Add(3)
 	// create nodes
-	n1 := state.NewNode("9001", peers)
+	n1, err1 := state.NewNode("9001", peers)
+	if err1 != nil {
+		panic(err1)
+	}
 	n1.PrintDetails()
-	n2 := state.NewNode("9002", peers)
+
+	n2, err2 := state.NewNode("9002", peers)
+	if err2 != nil {
+		panic(err2)
+	}
 	n2.PrintDetails()
-	n3 := state.NewNode("9003", peers)
+
+	n3, err3 := state.NewNode("9003", peers)
+	if err3 != nil {
+		panic(err3)
+	}
 	n3.PrintDetails()
 
 	go rpc_server.StartRPCServerListener(n1, &wg)
@@ -33,7 +44,7 @@ func main() {
 		for {
 			select {
 			case <-n1.StartElectionChan:
-				n1.BegginElection()
+				n1.BeginElection()
 			}
 		}
 	}()
@@ -41,7 +52,7 @@ func main() {
 		for {
 			select {
 			case <-n2.StartElectionChan:
-				n2.BegginElection()
+				n2.BeginElection()
 			}
 		}
 	}()
@@ -49,7 +60,7 @@ func main() {
 		for {
 			select {
 			case <-n3.StartElectionChan:
-				n3.BegginElection()
+				n3.BeginElection()
 			}
 		}
 	}()

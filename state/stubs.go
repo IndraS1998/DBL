@@ -13,9 +13,9 @@ import (
 )
 
 // requestVoteRPCStub sends a request vote RPC to the given peer address and returns true if the vote is granted
-func requestVoteRPCStub(n *Node, peerAddress string, close context.CancelFunc) bool {
+func requestVoteRPCStub(n *Node, peerAddress string, abort context.CancelFunc) bool {
 	fmt.Printf("sending request vote to %v \n", peerAddress)
-	con, err := grpc.NewClient(fmt.Sprintf("localhost:%v", peerAddress), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	con, err := grpc.NewClient(fmt.Sprintf("localhost:%s", peerAddress), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Printf("failed to connect to server %v:", err)
 	}
@@ -36,7 +36,7 @@ func requestVoteRPCStub(n *Node, peerAddress string, close context.CancelFunc) b
 	}
 	if vr.Term >= ct {
 		log.Printf("node %v has a higher term %v than %v", peerAddress, vr.Term, ct)
-		close()
+		abort()
 	}
 	return vr.VoteGranted
 }
@@ -46,13 +46,13 @@ func appendEntryRPCStub(node *Node, peer string, cmd []string, ct, prevLogIndex,
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := grpc.Dial("localhost:"+peer, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	con, err := grpc.NewClient(fmt.Sprintf("localhost:%s", peer), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer con.Close()
 
-	client := pb.NewRaftClient(conn)
+	client := pb.NewRaftClient(con)
 
 	entries := make([]*pb.LogEntry, 0)
 	for _, c := range cmd {
