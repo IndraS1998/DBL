@@ -3,9 +3,9 @@ package models
 type GeneralTransactionState string
 
 const (
-	Pending GeneralTransactionState = "pending"
-	Success GeneralTransactionState = "success"
-	Failed  GeneralTransactionState = "failed"
+	OperationPending GeneralTransactionState = "pending"
+	OperationSuccess GeneralTransactionState = "success"
+	OperationFailed  GeneralTransactionState = "failed"
 )
 
 type WalletOperationType string
@@ -19,7 +19,23 @@ const (
 type GeneralCrudOperation string
 
 const (
-	Create GeneralCrudOperation = "create"
-	Update GeneralCrudOperation = "update"
-	Delete GeneralCrudOperation = "delete"
+	CRUDCreate GeneralCrudOperation = "create"
+	CRUDUpdate GeneralCrudOperation = "update"
+	CRUDDelete GeneralCrudOperation = "delete"
+)
+
+type UserOperations string
+
+const (
+	CreateAccount  UserOperations = "create"
+	UpdatePassword UserOperations = "password"
+	CreateWallet   UserOperations = "wallet_create"
+	DeleteAccount  UserOperations = "delete"
+)
+
+type AdminOperations string
+
+const (
+	CreateAdminAccount  AdminOperations = "create"
+	ValidateUserAccount AdminOperations = "validate"
 )

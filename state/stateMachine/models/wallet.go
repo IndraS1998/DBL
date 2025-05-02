@@ -7,8 +7,8 @@ import (
 type Wallet struct {
 	WalletID  int `gorm:"primaryKey"`
 	UserID    int
-	UserRef   User `gorm:"foreignKey:UserID;references:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
-	Balance   int64
+	UserRef   User      `gorm:"foreignKey:UserID;references:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	Balance   int64     `gorm:"default:0"`
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
 
@@ -23,5 +23,3 @@ type WalletOperation struct {
 	Wallet2    *int
 	Wallet2Ref *Wallet `gorm:"foreignKey:Wallet2;references:WalletID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 }
-
-//getbalance, transfer, deposit, withdraw
