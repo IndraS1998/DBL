@@ -25,9 +25,3 @@ type AdminOperation struct {
 	OperationStatus         GeneralTransactionState
 	OperationType           AdminOperations
 }
-
-/*
-	ADMIN METHODS
-		TODO create account
-		TODO validate user
-*/

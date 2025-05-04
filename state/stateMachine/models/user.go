@@ -12,8 +12,10 @@ type CreateAccountFormData struct {
 	IdentificationImageBack              string
 }
 
-type UpdatePasswordFormData struct {
+type UpdateFormData struct {
 	PreviousPassword, NewPassWord string
+	UserID                        int
+	UserRef                       User `gorm:"foreignKey:UserID;references:UserID;constriant:OnUpdate:CASCASE,onDelete:SET NULL"`
 }
 
 type User struct {
@@ -29,15 +31,15 @@ type User struct {
 	IdentificationImageBack  string
 	ValidatedBy              *int
 	ValidatorRef             Admin `gorm:"foreignKey:ValidatedBy;references:AdminID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
+	CreationOperation        int
+	CreationOperationRef     *UserOperation `gorm:"foreignKey:CreationOperation;references:ID;constrint:OnUpdate:CASCASE,OnDelete:SET NULL"`
 }
 
 type UserOperation struct {
-	ID                     int `gorm:"primaryKey"`
-	UserID                 int
-	UserRef                User `gorm:"foreignKey:UserID;references:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
-	CreateAccountFormData  *CreateAccountFormData
-	UpdatePasswordFormData *UpdatePasswordFormData
-	Operation              UserOperations
-	OperationStatus        GeneralTransactionState
-	PerformedAt            time.Time `gorm:"autoCreateTime"`
+	ID                    int `gorm:"primaryKey"`
+	CreateAccountFormData *CreateAccountFormData
+	UpdateFormData        *UpdateFormData
+	Operation             UserOperations
+	OperationStatus       GeneralTransactionState
+	PerformedAt           time.Time `gorm:"autoCreateTime"`
 }

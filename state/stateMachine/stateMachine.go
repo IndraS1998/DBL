@@ -32,17 +32,18 @@ func InitStateMachine(path string) (*StateMachine, error) {
 
 // ApplyWalletOperation performs balace mutation on a wallet
 // ApplyWalletOperation applies a persisted wallet operation and updates its status.
-func (sm *StateMachine) ApplyWalletOperation(opID string) (*models.WalletOperation, error) {
-	var op models.WalletOperation
-
-	// Load the operation by ID
-	if err := sm.DB.First(&op, "operation_id = ?", opID).Error; err != nil {
-		return nil, fmt.Errorf("failed to find wallet operation: %w", err)
-	}
-
-	op.Timestamp = time.Now()
+func (sm *StateMachine) ApplyWalletOperation(opID int) error {
 
 	err := sm.DB.Transaction(func(tx *gorm.DB) error {
+		var op models.WalletOperation
+
+		// Load the operation by ID
+		if err := tx.First(&op, "operation_id = ?", opID).Error; err != nil {
+			return fmt.Errorf("failed to find wallet operation: %w", err)
+		}
+
+		op.Timestamp = time.Now()
+
 		var w1 models.Wallet
 		if err := tx.First(&w1, "wallet_id = ?", op.Wallet1).Error; err != nil {
 			op.Status = models.OperationFailed
@@ -93,6 +94,7 @@ func (sm *StateMachine) ApplyWalletOperation(opID string) (*models.WalletOperati
 		}
 
 		op.Status = models.OperationSuccess
+
 		if err := tx.Save(&op).Error; err != nil {
 			return fmt.Errorf("failed to update operation status: %w", err)
 		}
@@ -100,24 +102,23 @@ func (sm *StateMachine) ApplyWalletOperation(opID string) (*models.WalletOperati
 		return nil
 	})
 
-	return &op, err
+	return err
 }
 
 // ApplyUserOperation performs user operations withdraw, deposit,transfer
 // ApplyUserOperation applies a persisted user operation by its ID and updates its status accordingly.
-func (sm *StateMachine) ApplyUserOperation(opID string) (*models.UserOperation, error) {
-	var op models.UserOperation
-
-	// Load operation
-	if err := sm.DB.Preload("UserRef").First(&op, "id = ?", opID).Error; err != nil {
-		return nil, fmt.Errorf("failed to load user operation: %w", err)
-	}
-
-	op.PerformedAt = time.Now()
-
-	var opErr error
-
+func (sm *StateMachine) ApplyUserOperation(opID int) error {
 	err := sm.DB.Transaction(func(tx *gorm.DB) error {
+		var op models.UserOperation
+
+		// Load operation
+		if err := tx.First(&op, "id = ?", opID).Error; err != nil {
+			return fmt.Errorf("failed to load user operation: %w", err)
+		}
+
+		op.PerformedAt = time.Now()
+
+		var opErr error
 		switch op.Operation {
 
 		case models.CreateAccount:
@@ -144,7 +145,7 @@ func (sm *StateMachine) ApplyUserOperation(opID string) (*models.UserOperation, 
 			op.OperationStatus = models.OperationSuccess
 
 		case models.CreateWallet:
-			wallet := models.Wallet{UserID: op.UserID}
+			wallet := models.Wallet{UserID: op.UpdateFormData.UserID}
 			if err := tx.Create(&wallet).Error; err != nil {
 				op.OperationStatus = models.OperationFailed
 				opErr = fmt.Errorf("failed to create wallet: %w", err)
@@ -153,19 +154,19 @@ func (sm *StateMachine) ApplyUserOperation(opID string) (*models.UserOperation, 
 			op.OperationStatus = models.OperationSuccess
 
 		case models.UpdatePassword:
-			if op.UpdatePasswordFormData == nil {
+			if op.UpdateFormData == nil {
 				op.OperationStatus = models.OperationFailed
 				opErr = fmt.Errorf("password data is required")
 				return opErr
 			}
-			if op.UserRef.HashedPassword != op.UpdatePasswordFormData.PreviousPassword {
+			if op.UpdateFormData.UserRef.HashedPassword != op.UpdateFormData.PreviousPassword {
 				op.OperationStatus = models.OperationFailed
 				opErr = fmt.Errorf("invalid password supplied")
 				return opErr
 			}
 			if err := tx.Model(&models.User{}).
-				Where("user_id = ?", op.UserID).
-				Update("hashed_password", op.UpdatePasswordFormData.NewPassWord).Error; err != nil {
+				Where("user_id = ?", op.UpdateFormData.UserID).
+				Update("hashed_password", op.UpdateFormData.NewPassWord).Error; err != nil {
 				op.OperationStatus = models.OperationFailed
 				opErr = fmt.Errorf("unable to update password: %w", err)
 				return opErr
@@ -173,7 +174,7 @@ func (sm *StateMachine) ApplyUserOperation(opID string) (*models.UserOperation, 
 			op.OperationStatus = models.OperationSuccess
 
 		case models.DeleteAccount:
-			if err := tx.Where("user_id = ?", op.UserID).Delete(&models.User{}).Error; err != nil {
+			if err := tx.Where("user_id = ?", op.UpdateFormData.UserID).Delete(&models.User{}).Error; err != nil {
 				op.OperationStatus = models.OperationFailed
 				opErr = fmt.Errorf("unable to delete user: %w", err)
 				return opErr
@@ -186,32 +187,25 @@ func (sm *StateMachine) ApplyUserOperation(opID string) (*models.UserOperation, 
 			return opErr
 		}
 
-		// Update operation status and performed timestamp
-		if err := tx.Model(&models.UserOperation{}).
-			Where("id = ?", op.ID).
-			Updates(map[string]interface{}{
-				"operation_status": op.OperationStatus,
-				"performed_at":     op.PerformedAt,
-			}).Error; err != nil {
-			return fmt.Errorf("failed to update operation status: %w", err)
+		if err := tx.Save(&op).Error; err != nil {
+			return fmt.Errorf("failed to update admin operation status: %w", err)
 		}
-
 		return nil
 	})
 
-	return &op, err
+	return err
 }
 
 // ApplyAdminOperations commits a previously persisted admin operation and updates its status accordingly.
-func (sm *StateMachine) ApplyAdminOperations(opID string) (*models.AdminOperation, error) {
-	var op models.AdminOperation
-
-	// Load the operation from DB
-	if err := sm.DB.First(&op, "operation_id = ?", opID).Error; err != nil {
-		return nil, fmt.Errorf("failed to find admin operation: %w", err)
-	}
+func (sm *StateMachine) ApplyAdminOperations(opID int) error {
 
 	err := sm.DB.Transaction(func(tx *gorm.DB) error {
+		var op models.AdminOperation
+
+		// Load the operation from DB
+		if err := tx.First(&op, "operation_id = ?", opID).Error; err != nil {
+			return fmt.Errorf("failed to find admin operation: %w", err)
+		}
 		switch op.OperationType {
 		case models.CreateAdminAccount:
 			if op.CreateAdminFormData == nil {
@@ -256,5 +250,5 @@ func (sm *StateMachine) ApplyAdminOperations(opID string) (*models.AdminOperatio
 		return nil
 	})
 
-	return &op, err
+	return err
 }
