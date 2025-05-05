@@ -1,8 +1,12 @@
 package state
 
 import (
+	"fmt"
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	"raft/utils"
 )
 
 type PersistentState struct {
@@ -17,10 +21,14 @@ type MetaState struct {
 }
 
 // Log entries are stored in their own table
+// TODO add transaction status to each log entry
 type LogEntry struct {
-	Index int `gorm:"primaryKey;autoIncrement"` // Log index
-	Term  int32
-	Cmd   string
+	Index          int `gorm:"primaryKey;autoIncrement"` // Log index
+	Term           int32
+	ReferenceTable utils.RefTable
+	*utils.UserPayload
+	*utils.AdminPayload
+	*utils.WalletOperationPayload
 }
 
 // Initialize the Database and Auto-Migrate
@@ -68,9 +76,29 @@ func (ps *PersistentState) GetVotedFor() (string, error) {
 }
 
 // Managing Log Entries (Append, Read, Delete)
-func (ps *PersistentState) AppendLogEntry(term int32, cmd string) error {
-	entry := LogEntry{Term: term, Cmd: cmd}
-	return ps.DB.Create(&entry).Error
+func (ps *PersistentState) AppendLogEntry(term int32, refTable utils.RefTable, up *utils.UserPayload, ap *utils.AdminPayload, wp *utils.WalletOperationPayload) error {
+	switch refTable {
+	case utils.RefUser:
+		if up == nil {
+			return fmt.Errorf("user payload is required")
+		}
+		entry := LogEntry{Term: term, ReferenceTable: refTable, UserPayload: up, AdminPayload: nil, WalletOperationPayload: nil}
+		return ps.DB.Create(&entry).Error
+	case utils.RefAdmin:
+		if ap == nil {
+			return fmt.Errorf("admin payload is required")
+		}
+		entry := LogEntry{Term: term, ReferenceTable: refTable, UserPayload: nil, AdminPayload: ap, WalletOperationPayload: nil}
+		return ps.DB.Create(&entry).Error
+	case utils.RefWallet:
+		if wp == nil {
+			return fmt.Errorf("wallet payload is required")
+		}
+		entry := LogEntry{Term: term, ReferenceTable: refTable, UserPayload: nil, AdminPayload: nil, WalletOperationPayload: wp}
+		return ps.DB.Create(&entry).Error
+	default:
+		return fmt.Errorf("invalid reference table: %s", refTable)
+	}
 }
 
 func (ps *PersistentState) GetLogEntry(index int) (*LogEntry, error) {

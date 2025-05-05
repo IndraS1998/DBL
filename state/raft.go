@@ -2,6 +2,7 @@
 package state
 
 import (
+	"raft/utils"
 	//"errors"
 	"context"
 	"fmt"
@@ -173,17 +174,18 @@ func (node *Node) AppendEntry() {
 	responses := int32(1)
 
 	// Generate and append commands to leader's log
-	cmd := []string{}
-	for i := 0; i < 1; i++ {
-		cmd = append(cmd, custom_test.GenerateMessage())
-	}
+	cmd := custom_test.MockAPIRequest()
+
+	// generate operation
 	ct, err := node.GetCurrentTerm()
 	if err != nil {
 		log.Printf("could not get current term: %v", err)
 		return
 	}
-	for _, c := range cmd {
-		if err := node.AppendLogEntry(ct, c); err != nil {
+
+	// append operation to log
+	for _, payload := range cmd {
+		if err := node.AppendLogEntry(ct, utils.RefUser, payload.UserPayload, nil, nil); err != nil {
 			log.Printf("could not append log entry: %v", err)
 			return
 		}

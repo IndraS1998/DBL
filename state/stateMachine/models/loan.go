@@ -1,6 +1,7 @@
 package models
 
 import (
+	"raft/utils"
 	"time"
 )
 
@@ -12,14 +13,5 @@ type Loan struct {
 	Rate            float32
 	DueDate         time.Time
 	RepaymentAmount int64
-	Status          GeneralTransactionState `gorm:"default:'pending'"`
-}
-
-type LoanOperation struct {
-	ID              int `gorm:"primaryKey"`
-	LoanID          int
-	LoanRef         Loan `gorm:"foreignKey:LoanID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
-	OperationType   GeneralCrudOperation
-	OperationStatus GeneralTransactionState
-	OperationDate   time.Time `gorm:"autoCreateTime"`
+	Status          utils.TransactionStatus `gorm:"default:'pending'"`
 }
