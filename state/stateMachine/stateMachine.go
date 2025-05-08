@@ -33,45 +33,45 @@ func InitStateMachine(path string) (*StateMachine, error) {
 
 // ApplyWalletOperation performs balace mutation on a wallet
 // ApplyWalletOperation applies a persisted wallet operation and updates its status.
-func (sm *StateMachine) ApplyWalletOperation(wallet1 int, wallet2 int, amount int64, a utils.WalletAction) error {
+func (sm *StateMachine) ApplyWalletOperation(walletPayload utils.WalletOperationPayload) error {
 
 	err := sm.DB.Transaction(func(tx *gorm.DB) error {
 		// get first wallet
 		var w1 models.Wallet
-		if err := tx.First(&w1, "wallet_id = ?", wallet1).Error; err != nil {
+		if err := tx.First(&w1, "wallet_id = ?", walletPayload.Wallet1).Error; err != nil {
 			return fmt.Errorf("wallet1 not found: %w", err)
 		}
 		//perform wallet actions
-		switch a {
+		switch walletPayload.Action {
 		case utils.WalletDeposit:
-			w1.Balance += amount
+			w1.Balance += walletPayload.Amount
 
 		case utils.WalletWithdraw:
-			if w1.Balance < amount {
+			if w1.Balance < walletPayload.Amount {
 				return fmt.Errorf("insufficient funds")
 			}
-			w1.Balance -= amount
+			w1.Balance -= walletPayload.Amount
 
 		case utils.WalletTransfer:
-			if wallet2 < 0 {
+			if walletPayload.Wallet2 < 0 {
 				return fmt.Errorf("wallet2 is required for transfer")
 			}
 			var w2 models.Wallet
-			if err := tx.First(&w2, "wallet_id = ?", wallet2).Error; err != nil {
+			if err := tx.First(&w2, "wallet_id = ?", walletPayload.Wallet2).Error; err != nil {
 				return fmt.Errorf("wallet2 not found: %w", err)
 			}
-			if w1.Balance < amount {
+			if w1.Balance < walletPayload.Amount {
 				return fmt.Errorf("insufficient funds")
 			}
-			w1.Balance -= amount
-			w2.Balance += amount
+			w1.Balance -= walletPayload.Amount
+			w2.Balance += walletPayload.Amount
 
 			if err := tx.Save(&w2).Error; err != nil {
 				return fmt.Errorf("failed to update wallet2: %w", err)
 			}
 
 		default:
-			return fmt.Errorf("unsupported operation type: %s", a)
+			return fmt.Errorf("unsupported operation type: %s", walletPayload.Action)
 		}
 
 		if err := tx.Save(&w1).Error; err != nil {
@@ -85,55 +85,49 @@ func (sm *StateMachine) ApplyWalletOperation(wallet1 int, wallet2 int, amount in
 }
 
 // ApplyUserOperation performs user, UserID is set to -1 if not required such as create
-func (sm *StateMachine) ApplyUserOperation(UserID int, a utils.UserAction, cu *models.CreateUserAccountPayload, uu *models.UpdateUserPasswordPayload) error {
+func (sm *StateMachine) ApplyUserOperation(userPayload utils.UserPayload) error {
 	err := sm.DB.Transaction(func(tx *gorm.DB) error {
 
-		switch a {
+		switch userPayload.Action {
 
 		case utils.UserCreateAccount:
-			if cu == nil {
-				return fmt.Errorf("user data is required")
-			}
 			user := models.User{
-				FirstName:                cu.FirstName,
-				LastName:                 cu.LastName,
-				Email:                    cu.Email,
-				HashedPassword:           cu.HashedPassword, // hash before use!
-				DateOfBirth:              cu.DateOfBirth,
-				IdentificationNumber:     cu.IdentificationNumber,
-				IdentificationImageFront: cu.IdentificationImageFront,
-				IdentificationImageBack:  cu.IdentificationImageBack,
+				FirstName:                userPayload.FirstName,
+				LastName:                 userPayload.LastName,
+				Email:                    userPayload.Email,
+				HashedPassword:           userPayload.HashedPassword, // hash before use!
+				DateOfBirth:              userPayload.DateOfBirth,
+				IdentificationNumber:     userPayload.IdentificationNumber,
+				IdentificationImageFront: userPayload.IdentificationImageFront,
+				IdentificationImageBack:  userPayload.IdentificationImageBack,
 			}
 			if err := tx.Create(&user).Error; err != nil {
 				return fmt.Errorf("failed to create user: %w", err)
 			}
 		case utils.UserCreateWallet:
-			wallet := models.Wallet{UserID: UserID}
+			wallet := models.Wallet{UserID: userPayload.UserID}
 			if err := tx.Create(&wallet).Error; err != nil {
 				return fmt.Errorf("failed to create wallet: %w", err)
 			}
 		case utils.UserUpdatePassword:
-			if uu == nil {
-				return fmt.Errorf("password data is required")
-			}
 			var user models.User
-			if err := tx.First(&user, "user_id = ?", UserID).Error; err != nil {
+			if err := tx.First(&user, "user_id = ?", userPayload.UserID).Error; err != nil {
 				return fmt.Errorf("unable to get user:%w", err)
 			}
-			if user.HashedPassword != uu.PrevPassword {
+			if user.HashedPassword != userPayload.PrevPW {
 				return fmt.Errorf("invalid password supplied")
 			}
-			user.HashedPassword = uu.NewPassword
+			user.HashedPassword = userPayload.NewPW
 			if err := tx.Save(&user).Error; err != nil {
 				return fmt.Errorf("unable to update password: %w", err)
 			}
 		case utils.UserDeleteAccount:
-			if err := tx.Where("user_id = ?", UserID).Delete(&models.User{}).Error; err != nil {
+			if err := tx.Where("user_id = ?", userPayload.UserID).Delete(&models.User{}).Error; err != nil {
 				return fmt.Errorf("unable to delete user: %w", err)
 			}
 
 		default:
-			return fmt.Errorf("invalid operation type: %s", a)
+			return fmt.Errorf("invalid operation type: %s", userPayload.Action)
 		}
 		return nil
 	})
@@ -142,38 +136,32 @@ func (sm *StateMachine) ApplyUserOperation(UserID int, a utils.UserAction, cu *m
 }
 
 // ApplyAdminOperations commits logs related to admin operation. the id is -1 if it is not required
-func (sm *StateMachine) ApplyAdminOperations(AdminID int, ca *models.CreateAdminAccountPayload, vu *models.ValidateUserAccountPayload, a utils.AdminAction) error {
+func (sm *StateMachine) ApplyAdminOperations(adminPayload utils.AdminPayload) error {
 
 	err := sm.DB.Transaction(func(tx *gorm.DB) error {
-		switch a {
+		switch adminPayload.Action {
 		case utils.AdminCreateAccount:
-			if ca == nil {
-				return fmt.Errorf("admin data was required")
-			}
 			admin := models.Admin{
-				FirstName:      ca.FirstName,
-				LastName:       ca.LastName,
-				HashedPassword: ca.HashedPassword,
-				Email:          ca.Email,
+				FirstName:      adminPayload.FirstName,
+				LastName:       adminPayload.LastName,
+				HashedPassword: adminPayload.HashedPassword,
+				Email:          adminPayload.Email,
 			}
 			if err := tx.Create(&admin).Error; err != nil {
 				return fmt.Errorf("failed to create admin: %w", err)
 			}
 		case utils.AdminValidateUser:
-			if vu == nil {
-				return fmt.Errorf("form data was required")
-			}
 			if err := tx.Model(&models.User{}).
-				Where("user_id = ?", vu.UserID).
+				Where("user_id = ?", adminPayload.UserId).
 				Updates(map[string]interface{}{
-					"validated_by": AdminID,
+					"validated_by": adminPayload.AdminID,
 					"updated_at":   time.Now(),
 				}).Error; err != nil {
 				return fmt.Errorf("failed to validate user: %w", err)
 			}
 
 		default:
-			return fmt.Errorf("invalid admin operation type: %s", a)
+			return fmt.Errorf("invalid admin operation type: %s", adminPayload.Action)
 		}
 
 		return nil

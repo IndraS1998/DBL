@@ -7,13 +7,6 @@ import (
 	"time"
 )
 
-type MockUserReq struct {
-	RefTable utils.RefTable
-	*utils.UserPayload
-	*utils.AdminPayload
-	*utils.WalletOperationPayload
-}
-
 // GenerateRandomString generates a random string of the specified length containing only letters
 func generateRandomString(length int) string {
 	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -25,7 +18,7 @@ func generateRandomString(length int) string {
 	}
 	return string(result)
 }
-func generateCreateAccountData() MockUserReq {
+func generateCreateAccountData() utils.UserPayload {
 	payload := utils.UserPayload{
 		FirstName:                generateRandomString(5),
 		LastName:                 generateRandomString(7),
@@ -40,16 +33,10 @@ func generateCreateAccountData() MockUserReq {
 		UserID:                   -1,
 		Action:                   utils.UserCreateAccount,
 	}
-	req := MockUserReq{
-		RefTable:               utils.RefUser,
-		UserPayload:            &payload,
-		AdminPayload:           nil,
-		WalletOperationPayload: nil,
-	}
-	return req
+	return payload
 }
-func MockAPIRequest() []MockUserReq {
-	results := make([]MockUserReq, 2)
+func MockAPIRequest() []utils.Payload {
+	results := make([]utils.Payload, 2)
 	for i := range results {
 		results[i] = generateCreateAccountData()
 	}

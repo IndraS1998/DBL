@@ -2,11 +2,11 @@ package state
 
 import (
 	"fmt"
+	"raft/utils"
+	"time"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-
-	"raft/utils"
 )
 
 type PersistentState struct {
@@ -21,14 +21,35 @@ type MetaState struct {
 }
 
 // Log entries are stored in their own table
-// TODO add transaction status to each log entry
+type UserPayload struct {
+	ID                                                                                     uint `gorm:"primaryKey"`
+	FirstName, LastName, HashedPassword, Email                                             string
+	DateOfBirth                                                                            time.Time
+	IdentificationNumber, IdentificationImageFront, IdentificationImageBack, PrevPW, NewPW string
+	UserID                                                                                 int
+	Action                                                                                 utils.UserAction
+}
+
+type AdminPayload struct {
+	ID                                         uint `gorm:"primaryKey"`
+	FirstName, LastName, HashedPassword, Email string
+	AdminID, UserId                            int
+	Action                                     utils.AdminAction
+}
+
+type WalletOperationPayload struct {
+	ID      uint `gorm:"primaryKey"`
+	Wallet1 int
+	Wallet2 int
+	Amount  int64
+	Action  utils.WalletAction
+}
 type LogEntry struct {
 	Index          int `gorm:"primaryKey;autoIncrement"` // Log index
 	Term           int32
 	ReferenceTable utils.RefTable
-	*utils.UserPayload
-	*utils.AdminPayload
-	*utils.WalletOperationPayload
+	Status         utils.TransactionStatus `gorm:"default:'pending'"`
+	PayloadID      uint
 }
 
 // Initialize the Database and Auto-Migrate
@@ -39,7 +60,7 @@ func InitPersistentState(filePath string) (*PersistentState, error) {
 	}
 
 	// Migrate the schema
-	err = db.AutoMigrate(&MetaState{}, &LogEntry{})
+	err = db.AutoMigrate(&MetaState{}, &UserPayload{}, &WalletOperationPayload{}, &AdminPayload{}, &LogEntry{})
 	if err != nil {
 		return nil, err
 	}
@@ -76,29 +97,90 @@ func (ps *PersistentState) GetVotedFor() (string, error) {
 }
 
 // Managing Log Entries (Append, Read, Delete)
-func (ps *PersistentState) AppendLogEntry(term int32, refTable utils.RefTable, up *utils.UserPayload, ap *utils.AdminPayload, wp *utils.WalletOperationPayload) error {
-	switch refTable {
-	case utils.RefUser:
-		if up == nil {
-			return fmt.Errorf("user payload is required")
+func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
+	refTable := p.GetRefTable()
+	return ps.DB.Transaction(func(tx *gorm.DB) error {
+		switch refTable {
+		case utils.RefUser:
+			payload, ok := p.(utils.UserPayload)
+			if ok {
+				userPayload := UserPayload{
+					FirstName:                payload.FirstName,
+					LastName:                 payload.LastName,
+					HashedPassword:           payload.HashedPassword,
+					Email:                    payload.Email,
+					DateOfBirth:              payload.DateOfBirth,
+					IdentificationNumber:     payload.IdentificationNumber,
+					IdentificationImageFront: payload.IdentificationImageFront,
+					IdentificationImageBack:  payload.IdentificationImageBack,
+					PrevPW:                   payload.PrevPW,
+					NewPW:                    payload.NewPW,
+					UserID:                   payload.UserID,
+					Action:                   payload.Action,
+				}
+				if err := tx.Create(&userPayload).Error; err != nil {
+					return fmt.Errorf("failed to created the associated user payload:%w", err)
+				}
+				logEntry := LogEntry{
+					Term: term, ReferenceTable: refTable, PayloadID: userPayload.ID,
+				}
+				if err := tx.Create(&logEntry).Error; err != nil {
+					return fmt.Errorf("failed to create the log entry:%w", err)
+				}
+				return nil
+			} else {
+				return fmt.Errorf("failed to cast payload to UserPayload")
+			}
+		case utils.RefAdmin:
+			payload, ok := p.(utils.AdminPayload)
+			if ok {
+				adminPayload := AdminPayload{
+					FirstName: payload.FirstName,
+					LastName:  payload.LastName,
+					Email:     payload.Email,
+					AdminID:   payload.AdminID,
+					UserId:    payload.UserId,
+					Action:    payload.Action,
+				}
+				if err := tx.Create(&adminPayload).Error; err != nil {
+					return fmt.Errorf("failed to create admin payload: %w", err)
+				}
+				logEntry := LogEntry{
+					Term: term, ReferenceTable: refTable, PayloadID: adminPayload.ID,
+				}
+				if err := tx.Create(&logEntry).Error; err != nil {
+					return fmt.Errorf("failed to create log entry for admin payload:%w", err)
+				}
+				return nil
+			} else {
+				return fmt.Errorf("failed to cast payload as AdminPayload")
+			}
+		case utils.RefWallet:
+			payload, ok := p.(utils.WalletOperationPayload)
+			if ok {
+				walletPayload := WalletOperationPayload{
+					Wallet1: payload.Wallet1,
+					Wallet2: payload.Wallet2,
+					Amount:  payload.Amount,
+					Action:  payload.Action,
+				}
+				if err := tx.Create(&walletPayload).Error; err != nil {
+					return fmt.Errorf("failed to create wallet payload: %w", err)
+				}
+				logEntry := LogEntry{
+					Term: term, ReferenceTable: refTable, PayloadID: walletPayload.ID,
+				}
+				if err := tx.Create(&logEntry).Error; err != nil {
+					return fmt.Errorf("failed to create log entry for wallet payload:%w", err)
+				}
+				return nil
+			} else {
+				return fmt.Errorf("failed to cast payload as wallet operation")
+			}
+		default:
+			return fmt.Errorf("unsupported operation: %s", refTable)
 		}
-		entry := LogEntry{Term: term, ReferenceTable: refTable, UserPayload: up, AdminPayload: nil, WalletOperationPayload: nil}
-		return ps.DB.Create(&entry).Error
-	case utils.RefAdmin:
-		if ap == nil {
-			return fmt.Errorf("admin payload is required")
-		}
-		entry := LogEntry{Term: term, ReferenceTable: refTable, UserPayload: nil, AdminPayload: ap, WalletOperationPayload: nil}
-		return ps.DB.Create(&entry).Error
-	case utils.RefWallet:
-		if wp == nil {
-			return fmt.Errorf("wallet payload is required")
-		}
-		entry := LogEntry{Term: term, ReferenceTable: refTable, UserPayload: nil, AdminPayload: nil, WalletOperationPayload: wp}
-		return ps.DB.Create(&entry).Error
-	default:
-		return fmt.Errorf("invalid reference table: %s", refTable)
-	}
+	})
 }
 
 func (ps *PersistentState) GetLogEntry(index int) (*LogEntry, error) {
@@ -132,14 +214,24 @@ func (ps *PersistentState) GetLogLength() (int64, error) {
 	return count, nil
 }
 
-func (ps *PersistentState) GetCommandsFromIndex(startIndex int) ([]string, error) {
-	var commands []string
+func (ps *PersistentState) GetCommandsFromIndex(startIndex int) ([]LogEntry, error) {
+	var entries []LogEntry
+
 	err := ps.DB.Model(&LogEntry{}).
 		Where("`index` >= ?", startIndex).
-		Order("`index` asc").
-		Pluck("cmd", &commands).Error
+		Order("`index` asc").Find(&entries).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error getting entries: %w", err)
 	}
-	return commands, nil
+	return entries, nil
+}
+func (ps *PersistentState) GetEntriesForCommit(lastApplied, commitIndex int) ([]LogEntry, error) {
+	var entries []LogEntry
+	err := ps.DB.Model(&LogEntry{}).
+		Where("`index` > ? AND `index` <= ?", lastApplied, commitIndex).
+		Order("`index` asc").Find(&entries).Error
+	if err != nil {
+		return nil, fmt.Errorf("error getting entries: %w", err)
+	}
+	return entries, nil
 }

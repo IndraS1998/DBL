@@ -25,19 +25,19 @@ func NewServer(node *state.Node) *server {
 }
 
 func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
-	ct, e := s.node.GetCurrentTerm()
+	ct, e := s.node.Log.GetCurrentTerm()
 	if e != nil {
 		log.Printf("could not get current term: %v", e)
 		return nil, e
 	}
 	s.node.ResetTimerChan <- true
 	if vr.GetTerm() > ct {
-		er := s.node.SetCurrentTerm(vr.GetTerm())
+		er := s.node.Log.SetCurrentTerm(vr.GetTerm())
 		if er != nil {
 			log.Printf("could not set current term: %v", er)
 			return nil, er
 		}
-		err := s.node.SetVotedFor(vr.GetCandidateId())
+		err := s.node.Log.SetVotedFor(vr.GetCandidateId())
 		if err != nil {
 			log.Printf("could not set voted for: %v", err)
 			return nil, err
@@ -51,10 +51,11 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 
 func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	log.Printf("%v received AppendEntries from %v with term %v\n", s.node.Address, req.LeaderId, req.Term)
+	log.Printf("entries: %v\n", req.Entries)
 	s.node.ResetTimerChan <- true
 
 	// Check if the term is less than the current term
-	ct, e := s.node.GetCurrentTerm()
+	ct, e := s.node.Log.GetCurrentTerm()
 	if e != nil {
 		log.Printf("could not get current term: %v", e)
 		return nil, e
@@ -67,18 +68,18 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 
 	// if prevLogIndex = 0? i still need to check the log lengh and ensure it is also 0
 	if req.PrevLogIndex == 0 {
-		logLength, _ := s.node.GetLogLength()
+		logLength, _ := s.node.Log.GetLogLength()
 		if logLength != 0 {
 			log.Printf("message from: %s, leader thinks prev log is 0 while it is %v\n", s.node.Address, logLength)
 			return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
 		}
 	} else {
 		// get log entry at point prevLogIndex
-		logEntry, err := s.node.GetLogEntry(int(req.PrevLogIndex))
+		logEntry, err := s.node.Log.GetLogEntry(int(req.PrevLogIndex))
 		// if there is no entry at that point, return false [hint use gorm.RecordNotFound]
 		if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Printf("no such record exists with the index %v\n", req.PrevLogIndex)
-			ent, e2 := s.node.GetAllLogEntries()
+			ent, e2 := s.node.Log.GetAllLogEntries()
 			if e2 != nil {
 				log.Printf("could not get all log entries: %v", e2)
 				return nil, e2
@@ -95,7 +96,7 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	}
 
 	// Update term and become follower if necessary
-	er := s.node.SetCurrentTerm(req.Term)
+	er := s.node.Log.SetCurrentTerm(req.Term)
 	if er != nil {
 		log.Printf("could not set current term: %v", er)
 		return nil, er
@@ -106,29 +107,34 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 
 	// Append new entries to the log
 	for _, entry := range req.Entries {
-		err := s.node.AppendLogEntry(entry.Term, entry.Command)
+		payload, err := state.ProtoToLogEntry(entry, entry.ReferenceTable)
 		if err != nil {
-			log.Printf("could not insert log entry: %v", err)
 			return nil, err
+		}
+		err1 := s.node.Log.AppendLogEntry(entry.Term, payload)
+		if err1 != nil {
+			log.Printf("could not insert log entry: %v", err)
+			return nil, err1
 		}
 	}
 
 	// Update commit index
 	if req.LeaderCommit > s.node.CommitIndex {
-		logLength, _ := s.node.GetLogLength()
+		logLength, _ := s.node.Log.GetLogLength()
 		s.node.Mu.Lock()
 		s.node.CommitIndex = min(req.LeaderCommit, int32(logLength))
 		s.node.Mu.Unlock()
+		s.node.Commit() // commit entries here by comparing last applied with actual commit
 	}
 
-	// Print log entries after appending
-	ent, e2 := s.node.GetAllLogEntries()
+	// Print log entries after appending just for testing purposes
+	ent, e2 := s.node.Log.GetAllLogEntries()
 	if e2 != nil {
 		log.Printf("could not get all log entries: %v", e2)
 		return nil, e2
 	}
 	fmt.Printf("log entries after append for %v: %v", s.node.Address, ent)
-	uct, e1 := s.node.GetCurrentTerm()
+	uct, e1 := s.node.Log.GetCurrentTerm()
 	if e1 != nil {
 		log.Printf("could not get current term: %v", e1)
 		return nil, e1

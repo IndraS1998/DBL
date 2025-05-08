@@ -2,13 +2,15 @@
 package state
 
 import (
-	"raft/utils"
+
 	//"errors"
 	"context"
 	"fmt"
 	"log"
 	"math/rand"
 	"raft/custom_test"
+	"raft/state/stateMachine"
+	"raft/utils"
 	"sync"
 	"time"
 )
@@ -21,7 +23,8 @@ type Node struct {
 	ResetTimerChan, StopTimerChan, StartElectionChan, BecomeLeaderChan, RevertToFollowerChan chan bool
 	MatchIndex                                                                               map[string]int32
 	NextIndex                                                                                map[string]int64
-	*PersistentState
+	Log                                                                                      *PersistentState
+	StateMachine                                                                             *stateMachine.StateMachine
 }
 
 // creates a new computational node
@@ -37,6 +40,11 @@ func NewNode(address string, allPeers []string) (*Node, error) {
 		fmt.Println("Error initializing persistent state:", err)
 		return nil, fmt.Errorf("could not initialize persistent state for %s, error: %w", address, err)
 	}
+	sm, sm_init_err := stateMachine.InitStateMachine(fmt.Sprintf("%s.sm.db", address))
+	if sm_init_err != nil {
+		fmt.Println("Error initializing state machine:", sm_init_err)
+		return nil, fmt.Errorf("could not initialize state machine %s, error: %w", address, sm_init_err)
+	}
 	return &Node{
 		CommitIndex:          0,
 		LastApplied:          0,
@@ -51,7 +59,8 @@ func NewNode(address string, allPeers []string) (*Node, error) {
 		RevertToFollowerChan: make(chan bool, 1),
 		NextIndex:            make(map[string]int64),
 		MatchIndex:           make(map[string]int32),
-		PersistentState:      ps,
+		Log:                  ps,
+		StateMachine:         sm,
 	}, nil
 }
 
@@ -87,17 +96,17 @@ func (n *Node) StartTimer(wg *sync.WaitGroup) {
 // BegginElection is called when a node times out and starts an election
 func (n *Node) BeginElection() {
 
-	t, err := n.GetCurrentTerm()
+	t, err := n.Log.GetCurrentTerm()
 	if err != nil {
 		fmt.Println("Error getting current term:", err)
 		return
 	}
-	err = n.SetCurrentTerm(t + 1)
+	err = n.Log.SetCurrentTerm(t + 1)
 	if err != nil {
 		fmt.Println("Error setting current term:", err)
 		return
 	}
-	err = n.SetVotedFor(n.Address)
+	err = n.Log.SetVotedFor(n.Address)
 	if err != nil {
 		fmt.Println("Error setting vote:", err)
 		return
@@ -132,7 +141,7 @@ func (n *Node) BeginElection() {
 			if !open {
 				if receivedVotes > len(n.Peers)/2 {
 					fmt.Printf("received %v votes , %v is now the leader \n", receivedVotes, n.Address)
-					logCount, e := n.GetLogLength()
+					logCount, e := n.Log.GetLogLength()
 					if e != nil {
 						fmt.Println("Error getting log length:", e.Error())
 						return
@@ -174,24 +183,24 @@ func (node *Node) AppendEntry() {
 	responses := int32(1)
 
 	// Generate and append commands to leader's log
-	cmd := custom_test.MockAPIRequest()
+	requests := custom_test.MockAPIRequest()
 
-	// generate operation
-	ct, err := node.GetCurrentTerm()
+	// get the term
+	ct, err := node.Log.GetCurrentTerm()
 	if err != nil {
 		log.Printf("could not get current term: %v", err)
 		return
 	}
 
-	// append operation to log
-	for _, payload := range cmd {
-		if err := node.AppendLogEntry(ct, utils.RefUser, payload.UserPayload, nil, nil); err != nil {
+	// append operations to log
+	for _, payload := range requests {
+		if err := node.Log.AppendLogEntry(ct, payload); err != nil {
 			log.Printf("could not append log entry: %v", err)
 			return
 		}
 	}
-
-	ent, e2 := node.GetAllLogEntries()
+	// just for testing purposes
+	ent, e2 := node.Log.GetAllLogEntries()
 	if e2 != nil {
 		log.Printf("could not get all log entries: %v\n", e2)
 		return
@@ -212,7 +221,7 @@ func (node *Node) AppendEntry() {
 			prevTerm := int32(0)
 			//adjust the prevTerm based on the prevIndex
 			if prevIndex > 0 {
-				entry, err := node.GetLogEntry(int(prevIndex))
+				entry, err := node.Log.GetLogEntry(int(prevIndex))
 				if err != nil {
 					log.Printf("could not get log entry: %v", err)
 
@@ -221,15 +230,15 @@ func (node *Node) AppendEntry() {
 			}
 
 			//fetch the actual commands based on the last commited entryso as to make the node be up to date
-			cmds, err := node.GetCommandsFromIndex(int(node.NextIndex[peer]))
+			entries, err := node.Log.GetCommandsFromIndex(int(node.NextIndex[peer]))
 			if err != nil {
 				log.Printf("could not get commands from index: %v", err)
 			}
-			res, _ := appendEntryRPCStub(node, peer, cmds, ct, prevIndex, prevTerm)
+			res, _ := appendEntryRPCStub(node, peer, entries, ct, prevIndex, prevTerm)
 			if res.Success {
 				node.Mu.Lock()
-				node.NextIndex[peer] += int64(len(cmds))
-				node.MatchIndex[peer] += int32(len(cmds))
+				node.NextIndex[peer] += int64(len(entries))
+				node.MatchIndex[peer] += int32(len(entries))
 				node.Mu.Unlock()
 				ch <- true
 			} else if res.Term > ct {
@@ -256,10 +265,11 @@ func (node *Node) AppendEntry() {
 			if !open {
 				// All goroutines are done
 				if responses > int32(len(node.Peers)/2) {
-					lastEntry, _ := node.GetLastLogEntry()
+					lastEntry, _ := node.Log.GetLastLogEntry()
 					node.Mu.Lock()
 					node.CommitIndex = int32(lastEntry.Index)
 					node.Mu.Unlock()
+					node.Commit()
 					return
 				} else {
 					return
@@ -275,13 +285,110 @@ func (node *Node) AppendEntry() {
 	}
 }
 
+// TODO How to ensure idempodency (apply atmost onse semantics) in commit
+func (n *Node) Commit() {
+	if n.CommitIndex > n.LastApplied {
+		// now fetch all entries that fall in the range of last applied but less than commit index
+		entries, err := n.Log.GetEntriesForCommit(int(n.LastApplied), int(n.CommitIndex))
+		if err != nil {
+			fmt.Println(err)
+		}
+		n.Mu.Lock()
+		defer n.Mu.Unlock()
+		for _, entry := range entries {
+			// cast the payload to the correct type
+			switch entry.ReferenceTable {
+			case utils.RefUser:
+
+				var payload UserPayload
+				if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
+					fmt.Printf("failed to load user payload:")
+					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+					return
+				}
+				userPayload := utils.UserPayload{
+					FirstName:                payload.FirstName,
+					LastName:                 payload.LastName,
+					HashedPassword:           payload.HashedPassword,
+					Email:                    payload.Email,
+					DateOfBirth:              payload.DateOfBirth,
+					IdentificationNumber:     payload.IdentificationNumber,
+					IdentificationImageFront: payload.IdentificationImageFront,
+					IdentificationImageBack:  payload.IdentificationImageBack,
+					PrevPW:                   payload.PrevPW,
+					NewPW:                    payload.NewPW,
+					UserID:                   payload.UserID,
+					Action:                   payload.Action,
+				}
+				if err2 := n.StateMachine.ApplyUserOperation(userPayload); err2 != nil {
+					fmt.Printf("failed to apply user operation: %v", err2)
+					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+					return
+				}
+
+			case utils.RefAdmin:
+
+				var payload AdminPayload
+				if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
+					fmt.Printf("failed to load user payload:")
+					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+					return
+				}
+				adminPayload := utils.AdminPayload{
+					FirstName:      payload.FirstName,
+					LastName:       payload.LastName,
+					HashedPassword: payload.HashedPassword,
+					Email:          payload.Email,
+					AdminID:        payload.AdminID,
+					UserId:         payload.UserId,
+					Action:         payload.Action,
+				}
+				if err2 := n.StateMachine.ApplyAdminOperations(adminPayload); err2 != nil {
+					fmt.Printf("failed to apply entry to state machine: %v", err2)
+					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+					return
+				}
+
+			case utils.RefWallet:
+
+				var payload WalletOperationPayload
+				if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
+					fmt.Printf("failed to load wallet payload")
+					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+					return
+				}
+				walletPayload := utils.WalletOperationPayload{
+					Wallet1: payload.Wallet1,
+					Wallet2: payload.Wallet2,
+					Amount:  payload.Amount,
+					Action:  payload.Action,
+				}
+				if err2 := n.StateMachine.ApplyWalletOperation(walletPayload); err2 != nil {
+					fmt.Printf("failed to apply entry to state machine: %v", err2)
+					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+					return
+				}
+
+			default:
+				fmt.Println("Unknown reference table")
+				n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+			}
+
+			n.LastApplied++
+			n.Log.DB.Model(&entry).Update("status", utils.TxSuccess)
+		}
+	} else {
+		fmt.Println("Nothing to commit")
+	}
+}
+
 func (n *Node) PrintDetails() {
-	ct, err := n.GetCurrentTerm()
+	ct, err := n.Log.GetCurrentTerm()
 	if err != nil {
 		fmt.Println("Error getting current term:", err)
 		return
 	}
-	vf, err1 := n.GetVotedFor()
+	vf, err1 := n.Log.GetVotedFor()
 	if err1 != nil {
 		fmt.Println("Error getting voted for:", err1)
 		return
