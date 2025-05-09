@@ -13,7 +13,7 @@ type UserPayload struct {
 	DateOfBirth                                                                            time.Time
 	IdentificationNumber, IdentificationImageFront, IdentificationImageBack, PrevPW, NewPW string
 	UserID                                                                                 int
-	Action                                                                                 UserAction // create, update, delete
+	Action                                                                                 UserAction
 }
 
 func (up UserPayload) GetRefTable() RefTable {

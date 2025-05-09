@@ -51,7 +51,6 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 
 func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
 	log.Printf("%v received AppendEntries from %v with term %v\n", s.node.Address, req.LeaderId, req.Term)
-	log.Printf("entries: %v\n", req.Entries)
 	s.node.ResetTimerChan <- true
 
 	// Check if the term is less than the current term
@@ -126,7 +125,7 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 		s.node.Mu.Unlock()
 		s.node.Commit() // commit entries here by comparing last applied with actual commit
 	}
-
+	s.node.PrintDetails()
 	// Print log entries after appending just for testing purposes
 	ent, e2 := s.node.Log.GetAllLogEntries()
 	if e2 != nil {

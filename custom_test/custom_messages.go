@@ -28,8 +28,8 @@ func generateCreateAccountData() utils.UserPayload {
 		IdentificationNumber:     generateRandomString(9),
 		IdentificationImageFront: generateRandomString(33),
 		IdentificationImageBack:  generateRandomString(32),
-		PrevPW:                   "",
-		NewPW:                    "",
+		PrevPW:                   generateRandomString(8),
+		NewPW:                    generateRandomString(8),
 		UserID:                   -1,
 		Action:                   utils.UserCreateAccount,
 	}

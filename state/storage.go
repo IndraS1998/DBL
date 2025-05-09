@@ -23,24 +23,24 @@ type MetaState struct {
 // Log entries are stored in their own table
 type UserPayload struct {
 	ID                                                                                     uint `gorm:"primaryKey"`
-	FirstName, LastName, HashedPassword, Email                                             string
-	DateOfBirth                                                                            time.Time
-	IdentificationNumber, IdentificationImageFront, IdentificationImageBack, PrevPW, NewPW string
-	UserID                                                                                 int
+	FirstName, LastName, HashedPassword, Email                                             *string
+	DateOfBirth                                                                            *time.Time
+	IdentificationNumber, IdentificationImageFront, IdentificationImageBack, PrevPW, NewPW *string
+	UserID                                                                                 *int
 	Action                                                                                 utils.UserAction
 }
 
 type AdminPayload struct {
 	ID                                         uint `gorm:"primaryKey"`
-	FirstName, LastName, HashedPassword, Email string
-	AdminID, UserId                            int
+	FirstName, LastName, HashedPassword, Email *string
+	AdminID, UserId                            *int
 	Action                                     utils.AdminAction
 }
 
 type WalletOperationPayload struct {
 	ID      uint `gorm:"primaryKey"`
 	Wallet1 int
-	Wallet2 int
+	Wallet2 *int
 	Amount  int64
 	Action  utils.WalletAction
 }
@@ -105,17 +105,17 @@ func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
 			payload, ok := p.(utils.UserPayload)
 			if ok {
 				userPayload := UserPayload{
-					FirstName:                payload.FirstName,
-					LastName:                 payload.LastName,
-					HashedPassword:           payload.HashedPassword,
-					Email:                    payload.Email,
-					DateOfBirth:              payload.DateOfBirth,
-					IdentificationNumber:     payload.IdentificationNumber,
-					IdentificationImageFront: payload.IdentificationImageFront,
-					IdentificationImageBack:  payload.IdentificationImageBack,
-					PrevPW:                   payload.PrevPW,
-					NewPW:                    payload.NewPW,
-					UserID:                   payload.UserID,
+					FirstName:                &payload.FirstName,
+					LastName:                 &payload.LastName,
+					HashedPassword:           &payload.HashedPassword,
+					Email:                    &payload.Email,
+					DateOfBirth:              &payload.DateOfBirth,
+					IdentificationNumber:     &payload.IdentificationNumber,
+					IdentificationImageFront: &payload.IdentificationImageFront,
+					IdentificationImageBack:  &payload.IdentificationImageBack,
+					PrevPW:                   &payload.PrevPW,
+					NewPW:                    &payload.NewPW,
+					UserID:                   &payload.UserID,
 					Action:                   payload.Action,
 				}
 				if err := tx.Create(&userPayload).Error; err != nil {
@@ -135,11 +135,11 @@ func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
 			payload, ok := p.(utils.AdminPayload)
 			if ok {
 				adminPayload := AdminPayload{
-					FirstName: payload.FirstName,
-					LastName:  payload.LastName,
-					Email:     payload.Email,
-					AdminID:   payload.AdminID,
-					UserId:    payload.UserId,
+					FirstName: &payload.FirstName,
+					LastName:  &payload.LastName,
+					Email:     &payload.Email,
+					AdminID:   &payload.AdminID,
+					UserId:    &payload.UserId,
 					Action:    payload.Action,
 				}
 				if err := tx.Create(&adminPayload).Error; err != nil {
@@ -160,7 +160,7 @@ func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
 			if ok {
 				walletPayload := WalletOperationPayload{
 					Wallet1: payload.Wallet1,
-					Wallet2: payload.Wallet2,
+					Wallet2: &payload.Wallet2,
 					Amount:  payload.Amount,
 					Action:  payload.Action,
 				}

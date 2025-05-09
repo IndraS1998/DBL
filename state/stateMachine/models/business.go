@@ -24,11 +24,11 @@ type WalletOperation struct {
 	ID         int `gorm:"primaryKey"`
 	Type       utils.WalletAction
 	Amount     int64
-	Timestamp  time.Time               `gorm:"autoCreateTime"`
-	Status     utils.TransactionStatus `gorm:"default:'pending'"`
+	Timestamp  time.Time
+	Status     utils.TransactionStatus
 	Wallet1    int
 	Wallet1Ref Wallet `gorm:"foreignKey:Wallet1;references:WalletID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
-	Wallet2    int
+	Wallet2    *int
 	Wallet2Ref Wallet `gorm:"foreignKey:Wallet2;references:WalletID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 }
 

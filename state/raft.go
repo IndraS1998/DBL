@@ -270,6 +270,7 @@ func (node *Node) AppendEntry() {
 					node.CommitIndex = int32(lastEntry.Index)
 					node.Mu.Unlock()
 					node.Commit()
+					node.PrintDetails()
 					return
 				} else {
 					return
@@ -285,7 +286,6 @@ func (node *Node) AppendEntry() {
 	}
 }
 
-// TODO How to ensure idempodency (apply atmost onse semantics) in commit
 func (n *Node) Commit() {
 	if n.CommitIndex > n.LastApplied {
 		// now fetch all entries that fall in the range of last applied but less than commit index
@@ -297,85 +297,91 @@ func (n *Node) Commit() {
 		defer n.Mu.Unlock()
 		for _, entry := range entries {
 			// cast the payload to the correct type
-			switch entry.ReferenceTable {
-			case utils.RefUser:
+			if entry.Status == utils.TxSuccess {
+				fmt.Println("Already applied:")
+				n.LastApplied++
+				continue
+			} else {
+				switch entry.ReferenceTable {
+				case utils.RefUser:
 
-				var payload UserPayload
-				if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
-					fmt.Printf("failed to load user payload:")
-					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-					return
-				}
-				userPayload := utils.UserPayload{
-					FirstName:                payload.FirstName,
-					LastName:                 payload.LastName,
-					HashedPassword:           payload.HashedPassword,
-					Email:                    payload.Email,
-					DateOfBirth:              payload.DateOfBirth,
-					IdentificationNumber:     payload.IdentificationNumber,
-					IdentificationImageFront: payload.IdentificationImageFront,
-					IdentificationImageBack:  payload.IdentificationImageBack,
-					PrevPW:                   payload.PrevPW,
-					NewPW:                    payload.NewPW,
-					UserID:                   payload.UserID,
-					Action:                   payload.Action,
-				}
-				if err2 := n.StateMachine.ApplyUserOperation(userPayload); err2 != nil {
-					fmt.Printf("failed to apply user operation: %v", err2)
-					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-					return
-				}
+					var payload UserPayload
+					if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
+						fmt.Printf("failed to load user payload:")
+						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+						return
+					}
+					userPayload := utils.UserPayload{
+						FirstName:                *payload.FirstName,
+						LastName:                 *payload.LastName,
+						HashedPassword:           *payload.HashedPassword,
+						Email:                    *payload.Email,
+						DateOfBirth:              *payload.DateOfBirth,
+						IdentificationNumber:     *payload.IdentificationNumber,
+						IdentificationImageFront: *payload.IdentificationImageFront,
+						IdentificationImageBack:  *payload.IdentificationImageBack,
+						PrevPW:                   *payload.PrevPW,
+						NewPW:                    *payload.NewPW,
+						UserID:                   *payload.UserID,
+						Action:                   payload.Action,
+					}
+					if err2 := n.StateMachine.ApplyUserOperation(userPayload); err2 != nil {
+						fmt.Printf("failed to apply user operation: %v", err2)
+						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+						return
+					}
 
-			case utils.RefAdmin:
+				case utils.RefAdmin:
 
-				var payload AdminPayload
-				if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
-					fmt.Printf("failed to load user payload:")
-					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-					return
-				}
-				adminPayload := utils.AdminPayload{
-					FirstName:      payload.FirstName,
-					LastName:       payload.LastName,
-					HashedPassword: payload.HashedPassword,
-					Email:          payload.Email,
-					AdminID:        payload.AdminID,
-					UserId:         payload.UserId,
-					Action:         payload.Action,
-				}
-				if err2 := n.StateMachine.ApplyAdminOperations(adminPayload); err2 != nil {
-					fmt.Printf("failed to apply entry to state machine: %v", err2)
-					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-					return
-				}
+					var payload AdminPayload
+					if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
+						fmt.Printf("failed to load user payload:")
+						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+						return
+					}
+					adminPayload := utils.AdminPayload{
+						FirstName:      *payload.FirstName,
+						LastName:       *payload.LastName,
+						HashedPassword: *payload.HashedPassword,
+						Email:          *payload.Email,
+						AdminID:        *payload.AdminID,
+						UserId:         *payload.UserId,
+						Action:         payload.Action,
+					}
+					if err2 := n.StateMachine.ApplyAdminOperations(adminPayload); err2 != nil {
+						fmt.Printf("failed to apply entry to state machine: %v", err2)
+						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+						return
+					}
 
-			case utils.RefWallet:
+				case utils.RefWallet:
 
-				var payload WalletOperationPayload
-				if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
-					fmt.Printf("failed to load wallet payload")
-					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-					return
-				}
-				walletPayload := utils.WalletOperationPayload{
-					Wallet1: payload.Wallet1,
-					Wallet2: payload.Wallet2,
-					Amount:  payload.Amount,
-					Action:  payload.Action,
-				}
-				if err2 := n.StateMachine.ApplyWalletOperation(walletPayload); err2 != nil {
-					fmt.Printf("failed to apply entry to state machine: %v", err2)
-					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-					return
-				}
+					var payload WalletOperationPayload
+					if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
+						fmt.Printf("failed to load wallet payload")
+						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+						return
+					}
+					walletPayload := utils.WalletOperationPayload{
+						Wallet1: payload.Wallet1,
+						Wallet2: *payload.Wallet2,
+						Amount:  payload.Amount,
+						Action:  payload.Action,
+					}
+					if err2 := n.StateMachine.ApplyWalletOperation(walletPayload); err2 != nil {
+						fmt.Printf("failed to apply entry to state machine: %v", err2)
+						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+						return
+					}
 
-			default:
-				fmt.Println("Unknown reference table")
-				n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+				default:
+					fmt.Println("Unknown reference table")
+					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+				}
+				//TODO : this should be in some transaction format
+				n.LastApplied++
+				n.Log.DB.Model(&entry).Update("status", utils.TxSuccess)
 			}
-
-			n.LastApplied++
-			n.Log.DB.Model(&entry).Update("status", utils.TxSuccess)
 		}
 	} else {
 		fmt.Println("Nothing to commit")

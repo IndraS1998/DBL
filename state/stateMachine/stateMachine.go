@@ -77,7 +77,17 @@ func (sm *StateMachine) ApplyWalletOperation(walletPayload utils.WalletOperation
 		if err := tx.Save(&w1).Error; err != nil {
 			return fmt.Errorf("failed to update wallet1: %w", err)
 		}
-		//TODO equally save transaction
+		walletOperation := models.WalletOperation{
+			Wallet1:   walletPayload.Wallet1,
+			Wallet2:   &walletPayload.Wallet2,
+			Amount:    walletPayload.Amount,
+			Type:      walletPayload.Action,
+			Timestamp: time.Now(),
+			Status:    utils.TxSuccess,
+		}
+		if errop := tx.Create(&walletOperation).Error; errop != nil {
+			return fmt.Errorf("failed to create wallet operation: %w", errop)
+		}
 		return nil
 	})
 
