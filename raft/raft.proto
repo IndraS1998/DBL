@@ -1,6 +1,8 @@
 syntax = "proto3";
 package raft;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/IndraS1998/DBL/raft/raft";
 
 service Raft{
@@ -19,6 +21,38 @@ message RequestVoteResponse{
     int32 term = 1;
     bool voteGranted = 2;
 }
+// payloads for append entries
+message UserPayload{
+    string firstName = 1;             
+	string lastName = 2;              
+	string hashedPassword = 3;
+	string email = 4;
+	google.protobuf.Timestamp dateOfBirth = 5;
+	string identificationNumber = 6;
+	string identificationImageFront = 7;
+	string identificationImageBack  = 8;
+    string prevPW = 9;
+    string newPW = 10;
+    int64 userID = 11;
+    string action  = 12; // create, update, delete
+}
+
+message AdminPayload{
+    string firstName = 1;
+    string lastName = 2;
+    string hashedPassword = 3;
+    string email = 4;
+    int64 adminID = 5;
+    int64 userId = 6;
+    string action = 7;
+}
+
+message WalletOperationPayload{
+    int64 wallet1 = 1;
+    int64 wallet2 = 2;
+    int64 amount = 3;
+    string action = 4;
+}
 
 message AppendEntriesRequest{
     int32 term = 1;
@@ -29,12 +63,17 @@ message AppendEntriesRequest{
     int32 leaderCommit = 6;
 }
 
+message LogEntry{
+    int32 term = 1;
+    string referenceTable = 2;
+    oneof payload{
+        UserPayload userPayload = 3;
+        AdminPayload adminPayload = 4;
+        WalletOperationPayload walletOperationPayload = 5;
+    }
+}
+
 message AppendEntriesResponse{
     int32 term = 1;
     bool success = 2;
-}
-
-message LogEntry{
-    int32 term = 1;
-    string command = 2;
 }
