@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"raft/custom_test"
 	"raft/state/stateMachine"
 	"raft/utils"
 	"sync"
@@ -183,8 +182,11 @@ func (node *Node) AppendEntry() {
 	responses := int32(1)
 
 	// Generate and append commands to leader's log
-	requests := custom_test.MockAPIRequest()
-
+	requests, err := utils.RetreivePayloads()
+	if err != nil {
+		requests = []utils.Payload{}
+		fmt.Errorf("error occured when retriving data from redis: %w", err)
+	}
 	// get the term
 	ct, err := node.Log.GetCurrentTerm()
 	if err != nil {
