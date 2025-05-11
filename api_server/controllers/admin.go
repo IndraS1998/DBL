@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"net/http"
 	sm "raft/state/stateMachine"
 	"raft/utils"
 	"strconv"
@@ -13,23 +14,23 @@ func GetAdminInfo(c *gin.Context) {
 	aid := c.Query("admin_id")
 	adminID, err := strconv.Atoi(aid)
 	if err != nil {
-		c.JSON(400, gin.H{"message": "invalid admin ID"})
+		c.JSON(http.StatusNotFound, gin.H{"message": "invalid admin ID"})
 		return
 	}
 	admin, err := sm.GetAdminInfo(adminID)
 	if err != nil {
-		c.JSON(400, gin.H{"message": "invalid admin ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid admin ID"})
 		return
 	}
-	c.JSON(200, gin.H{"admin": admin})
+	c.JSON(http.StatusOK, gin.H{"admin": admin})
 }
 
 func GetAllUsers(c *gin.Context) {
 	users, err := sm.GetUsers()
 	if err != nil {
-		c.JSON(400, gin.H{"Error": err})
+		c.JSON(http.StatusBadRequest, gin.H{"Error": err})
 	} else {
-		c.JSON(200, gin.H{"Users": users})
+		c.JSON(http.StatusOK, gin.H{"Users": users})
 	}
 
 }
@@ -41,19 +42,19 @@ func AdminSignin(c *gin.Context) {
 	}
 	var req AdminSigninPayload
 	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(400, gin.H{"message": err})
+		c.JSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
 	admin, err := sm.GetAdminByEmail(req.Email)
 	if err != nil {
-		c.JSON(401, gin.H{"message": err})
+		c.JSON(http.StatusNotAcceptable, gin.H{"message": err})
 		return
 	}
 	if admin.HashedPassword != req.HashedPassword {
-		c.JSON(401, gin.H{"message": "invalid credentials"})
+		c.JSON(http.StatusNotAcceptable, gin.H{"message": "invalid credentials"})
 		return
 	}
-	c.JSON(200, gin.H{"admin": admin})
+	c.JSON(http.StatusAccepted, gin.H{"admin": admin})
 }
 
 // MODIFICATIONS
@@ -88,7 +89,7 @@ func ValidateUser(c *gin.Context) {
 	}
 	var req AdminValidationPayload
 	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(400, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
 		return
 	}
 	payload := utils.AdminPayload{
@@ -97,8 +98,8 @@ func ValidateUser(c *gin.Context) {
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
-	c.JSON(200, gin.H{"message": "operation pending"})
+	c.JSON(http.StatusOK, gin.H{"message": "operation pending"})
 }
