@@ -2,11 +2,13 @@ package api_server
 
 import (
 	"raft/api_server/controllers"
+	"raft/state"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SetupRoutes(r *gin.Engine) {
+func SetupRoutes(r *gin.Engine, node *state.Node) {
+	r.Use(LeaderOnly(node))
 	user := r.Group("/api/user")
 	{
 		user.GET("/ping", controllers.Pong)

@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	"context"
+	"net/http"
 	sm "raft/state/stateMachine"
 	"raft/utils"
 	"strconv"
@@ -10,26 +10,24 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var ctx = context.Background()
-
 // READS
 func Pong(c *gin.Context) {
-	c.JSON(200, gin.H{"message": "Pong"})
+	c.JSON(http.StatusOK, gin.H{"message": "Pong"})
 }
 
 func GetUserInfo(c *gin.Context) {
 	uid := c.Query("user_id")
 	userID, err := strconv.Atoi(uid)
 	if err != nil {
-		c.JSON(500, gin.H{"message": "Invalid user ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid user ID"})
 		return
 	}
 	user, err := sm.GetUserByID(userID)
 	if err != nil {
-		c.JSON(501, gin.H{"message": "internal server error"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
 		return
 	}
-	c.JSON(200, gin.H{"user": user})
+	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
 func UserSignin(c *gin.Context) {
@@ -39,19 +37,19 @@ func UserSignin(c *gin.Context) {
 	}
 	var req UserSigninRequest
 	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(400, gin.H{"message": err})
+		c.JSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
 	user, err := sm.GetUserByEmail(req.Email)
 	if err != nil {
-		c.JSON(401, gin.H{"message": err})
+		c.JSON(http.StatusNotFound, gin.H{"message": err})
 		return
 	}
 	if user.HashedPassword != req.HashedPassword {
-		c.JSON(401, gin.H{"message": "invalid user credentials"})
+		c.JSON(http.StatusNotFound, gin.H{"message": "invalid user credentials"})
 		return
 	}
-	c.JSON(200, gin.H{"user": user})
+	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
 // WRITES,DELETES AND UPDATES
@@ -68,7 +66,7 @@ func UserSignup(c *gin.Context) {
 	}
 	var req UserSignupRequest
 	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(400, gin.H{"error": err})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
 		return
 	}
 	// Marshall
@@ -81,22 +79,22 @@ func UserSignup(c *gin.Context) {
 	//add payload to redis queue
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
 	//TODO :  we need to follow raft protocol here (idea generate a uid that will be used eventually to get status updates on the operation)
-	c.JSON(200, gin.H{"message": "operation pending"})
+	c.JSON(http.StatusOK, gin.H{"message": "operation pending"})
 }
 
 func UpdatePassword(c *gin.Context) {
 	var req struct {
-		UserID      int    `json:"user_id" binding:"required"`
-		OldPassword string `json:"old_password" binding:"required"`
-		NewPassword string `json:"new_password" binding:"required"`
+		UserID      int    `form:"user_id" binding:"required"`
+		OldPassword string `form:"old_password" binding:"required"`
+		NewPassword string `form:"new_password" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid request payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
@@ -108,19 +106,19 @@ func UpdatePassword(c *gin.Context) {
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
-	c.JSON(200, gin.H{"message": "operation pending"})
+	c.JSON(http.StatusOK, gin.H{"message": "operation pending"})
 }
 
 func DeleteUser(c *gin.Context) {
 	var req struct {
-		UserID int `json:"user_id" binding:"required"`
+		UserID int `form:"user_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid request payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
@@ -131,19 +129,19 @@ func DeleteUser(c *gin.Context) {
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
-	c.JSON(200, gin.H{"message": "operation pending"})
+	c.JSON(http.StatusOK, gin.H{"message": "operation pending"})
 }
 
 func CreateWallet(c *gin.Context) {
 	var req struct {
-		UserID int `json:"user_id" binding:"required"`
+		UserID int `form:"user_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(400, gin.H{"error": "Invalid request payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
 		return
 	}
 
@@ -154,8 +152,8 @@ func CreateWallet(c *gin.Context) {
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
-		c.JSON(400, gin.H{"error": err})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
 	}
-	c.JSON(200, gin.H{"message": "operation pending"})
+	c.JSON(http.StatusOK, gin.H{"message": "operation pending"})
 }
