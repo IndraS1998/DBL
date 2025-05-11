@@ -185,7 +185,7 @@ func (node *Node) AppendEntry() {
 	requests, err := utils.RetreivePayloads()
 	if err != nil {
 		requests = []utils.Payload{}
-		fmt.Errorf("error occured when retriving data from redis: %w", err)
+		fmt.Println(err)
 	}
 	// get the term
 	ct, err := node.Log.GetCurrentTerm()

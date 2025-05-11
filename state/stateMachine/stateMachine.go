@@ -78,7 +78,7 @@ func GetAdminByEmail(email string) (*models.Admin, error) {
 	}
 	var admin models.Admin
 	if err := defaultSM.DB.First(&admin, "email = ?", email).Error; err != nil {
-		return nil, fmt.Errorf("invalid credentials", err)
+		return nil, fmt.Errorf("invalid credentials: %w", err)
 	}
 	return &admin, nil
 }
