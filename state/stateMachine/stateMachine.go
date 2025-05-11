@@ -11,6 +11,10 @@ import (
 	"raft/utils"
 )
 
+var (
+	defaultSM *StateMachine
+)
+
 type StateMachine struct {
 	DB *gorm.DB
 }
@@ -27,8 +31,90 @@ func InitStateMachine(path string) (*StateMachine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed automigrate %w", err)
 	}
+	defaultSM := &StateMachine{DB: db}
+	return defaultSM, nil
+}
 
-	return &StateMachine{DB: db}, nil
+// ordinary get operations
+
+// GetUserByID return the user information
+func GetUserByID(userID int) (*models.User, error) {
+	if defaultSM == nil {
+		return nil, fmt.Errorf("state machine not yet initialized")
+	}
+	var user models.User
+	if err := defaultSM.DB.First(&user, "user_id = ?", userID).Error; err != nil {
+		return nil, fmt.Errorf("unable to ge the user: %w", err)
+	}
+	return &user, nil
+}
+
+func GetUserByEmail(email string) (*models.User, error) {
+	if defaultSM == nil {
+		return nil, fmt.Errorf("state machine not yet initialized")
+	}
+	var user models.User
+	if err := defaultSM.DB.First(&user, "email = ?", email).Error; err != nil {
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+	return &user, nil
+}
+
+// GetAdminInfo returns an admin instace from the db
+func GetAdminInfo(adminID int) (*models.Admin, error) {
+	if defaultSM == nil {
+		return nil, fmt.Errorf("state machine not yet initialized")
+	}
+	var admin models.Admin
+	if err := defaultSM.DB.First(&admin, "admin_id = ?", adminID).Error; err != nil {
+		return nil, fmt.Errorf("unable to get admin: %w", err)
+	}
+	return &admin, nil
+}
+
+func GetAdminByEmail(email string) (*models.Admin, error) {
+	if defaultSM == nil {
+		return nil, fmt.Errorf("state machine not yet initialized")
+	}
+	var admin models.Admin
+	if err := defaultSM.DB.First(&admin, "email = ?", email).Error; err != nil {
+		return nil, fmt.Errorf("invalid credentials: %w", err)
+	}
+	return &admin, nil
+}
+
+// GetWallet info ...
+func GetWallet(walletID int) (*models.Wallet, error) {
+	if defaultSM == nil {
+		return nil, fmt.Errorf("state machine not yet initialized")
+	}
+	var wallet models.Wallet
+	if err := defaultSM.DB.First(&wallet, "wallet_id = ?", walletID).Error; err != nil {
+		return nil, err
+	}
+	return &wallet, nil
+}
+
+func GetWallets(userID int) ([]*models.Wallet, error) {
+	if defaultSM == nil {
+		return nil, fmt.Errorf("state machine not yet initialized")
+	}
+	var wallets []*models.Wallet
+	if err := defaultSM.DB.Where("user_id = ?", userID).Find(&wallets).Error; err != nil {
+		return nil, fmt.Errorf("unable to get wallets: %w", err)
+	}
+	return wallets, nil
+}
+
+func GetUsers() ([]*models.User, error) {
+	if defaultSM == nil {
+		return nil, fmt.Errorf("state machine not yet initialized")
+	}
+	var users []*models.User
+	if err := defaultSM.DB.Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
 }
 
 // ApplyWalletOperation performs balace mutation on a wallet

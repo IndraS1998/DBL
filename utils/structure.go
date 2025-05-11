@@ -1,6 +1,10 @@
 package utils
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 type Payload interface {
 	GetRefTable() RefTable
@@ -38,4 +42,45 @@ type WalletOperationPayload struct {
 
 func (wp WalletOperationPayload) GetRefTable() RefTable {
 	return RefWallet
+}
+
+type PayloadWrapper struct {
+	Ref  string          `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
+
+func WrapPayload(p Payload) (*PayloadWrapper, error) {
+	data, err := json.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PayloadWrapper{
+		Ref:  string(p.GetRefTable()),
+		Data: data,
+	}, nil
+}
+
+func UnwrapPayload(wrappedStr string) (Payload, error) {
+	var wrapper PayloadWrapper
+	if err := json.Unmarshal([]byte(wrappedStr), &wrapper); err != nil {
+		return nil, err
+	}
+
+	switch wrapper.Ref {
+	case string(RefUser):
+		var p UserPayload
+		err := json.Unmarshal(wrapper.Data, &p)
+		return p, err
+	case string(RefAdmin):
+		var p AdminPayload
+		err := json.Unmarshal(wrapper.Data, &p)
+		return p, err
+	case string(RefWallet):
+		var p WalletOperationPayload
+		err := json.Unmarshal(wrapper.Data, &p)
+		return p, err
+	default:
+		return nil, fmt.Errorf("unknown payload type: %s", wrapper.Ref)
+	}
 }
