@@ -22,19 +22,30 @@ type MetaState struct {
 
 // Log entries are stored in their own table
 type UserPayload struct {
-	ID                                                                                     uint `gorm:"primaryKey"`
-	FirstName, LastName, HashedPassword, Email                                             *string
-	DateOfBirth                                                                            *time.Time
-	IdentificationNumber, IdentificationImageFront, IdentificationImageBack, PrevPW, NewPW *string
-	UserID                                                                                 *int
-	Action                                                                                 utils.UserAction
+	ID                       uint `gorm:"primaryKey"`
+	FirstName                *string
+	LastName                 *string
+	HashedPassword           *string
+	Email                    *string
+	DateOfBirth              *time.Time
+	IdentificationNumber     *string
+	IdentificationImageFront *string
+	IdentificationImageBack  *string
+	PrevPW                   *string
+	NewPW                    *string
+	UserID                   *int
+	Action                   utils.UserAction
 }
 
 type AdminPayload struct {
-	ID                                         uint `gorm:"primaryKey"`
-	FirstName, LastName, HashedPassword, Email *string
-	AdminID, UserId                            *int
-	Action                                     utils.AdminAction
+	ID             uint `gorm:"primaryKey"`
+	FirstName      *string
+	LastName       *string
+	HashedPassword *string
+	Email          *string
+	AdminID        *int
+	UserId         *int
+	Action         utils.AdminAction
 }
 
 type WalletOperationPayload struct {
@@ -44,6 +55,7 @@ type WalletOperationPayload struct {
 	Amount  int64
 	Action  utils.WalletAction
 }
+
 type LogEntry struct {
 	Index          int `gorm:"primaryKey;autoIncrement"` // Log index
 	Term           int32
@@ -135,12 +147,13 @@ func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
 			payload, ok := p.(utils.AdminPayload)
 			if ok {
 				adminPayload := AdminPayload{
-					FirstName: &payload.FirstName,
-					LastName:  &payload.LastName,
-					Email:     &payload.Email,
-					AdminID:   &payload.AdminID,
-					UserId:    &payload.UserId,
-					Action:    payload.Action,
+					FirstName:      &payload.FirstName,
+					LastName:       &payload.LastName,
+					Email:          &payload.Email,
+					HashedPassword: &payload.HashedPassword,
+					AdminID:        &payload.AdminID,
+					UserId:         &payload.UserId,
+					Action:         payload.Action,
 				}
 				if err := tx.Create(&adminPayload).Error; err != nil {
 					return fmt.Errorf("failed to create admin payload: %w", err)
@@ -198,6 +211,9 @@ func (ps *PersistentState) GetAllLogEntries() ([]LogEntry, error) {
 func (ps *PersistentState) GetLastLogEntry() (LogEntry, error) {
 	var entry LogEntry
 	err := ps.DB.Order("`index` desc").First(&entry).Error
+	if err != nil {
+		return LogEntry{}, err
+	}
 	return entry, err
 }
 
@@ -225,6 +241,7 @@ func (ps *PersistentState) GetCommandsFromIndex(startIndex int) ([]LogEntry, err
 	}
 	return entries, nil
 }
+
 func (ps *PersistentState) GetEntriesForCommit(lastApplied, commitIndex int) ([]LogEntry, error) {
 	var entries []LogEntry
 	err := ps.DB.Model(&LogEntry{}).

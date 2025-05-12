@@ -9,9 +9,9 @@ import (
 
 func SetupRoutes(r *gin.Engine, node *state.Node) {
 	r.Use(LeaderOnly(node))
+	r.GET("/ping", controllers.Pong)
 	user := r.Group("/api/user")
 	{
-		user.GET("/ping", controllers.Pong)
 		user.GET("/", controllers.GetUserInfo)
 		user.POST("/signup", controllers.UserSignup)
 		user.POST("/login", controllers.UserSignin)
