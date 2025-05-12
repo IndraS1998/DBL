@@ -253,6 +253,7 @@ func (sm *StateMachine) ApplyAdminOperations(adminPayload utils.AdminPayload) er
 				Updates(map[string]interface{}{
 					"validated_by": adminPayload.AdminID,
 					"updated_at":   time.Now(),
+					"active":       true,
 				}).Error; err != nil {
 				return fmt.Errorf("failed to validate user: %w", err)
 			}

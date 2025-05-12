@@ -15,7 +15,7 @@ func LeaderOnly(node *state.Node) gin.HandlerFunc {
 			isLeader := node.Status == "leader"
 
 			if !isLeader {
-				c.JSON(http.StatusForbidden, gin.H{
+				c.JSON(http.StatusPermanentRedirect, gin.H{
 					"error":         "This node is not the leader. Write requests must be sent to the leader.",
 					"leaderAddress": node.LeaderAddress,
 				})

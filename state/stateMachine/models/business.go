@@ -49,5 +49,5 @@ type User struct {
 	ValidatorRef             Admin     `gorm:"foreignKey:ValidatedBy;references:AdminID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL"`
 	CreatedAt                time.Time `gorm:"autoCreateTime"`
 	UpdatedAt                time.Time
-	Active                   bool `gorm:"default:true"`
+	Active                   bool `gorm:"default:false"`
 }

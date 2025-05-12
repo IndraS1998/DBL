@@ -249,6 +249,7 @@ func (node *Node) AppendEntry() {
 			} else if res.Term > ct {
 				cancel() // Trigger early exit due to stale term
 			} else {
+				// TODO : log matching property should end at 0, in that case wipe all follower log
 				node.Mu.Lock()
 				node.NextIndex[peer]--
 				node.Mu.Unlock()

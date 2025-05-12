@@ -148,7 +148,7 @@ func CreateWallet(c *gin.Context) {
 	payload := utils.UserPayload{
 		FirstName: "", LastName: "", HashedPassword: "", Email: "", DateOfBirth: time.Now(),
 		IdentificationNumber: "", IdentificationImageFront: "", IdentificationImageBack: "",
-		PrevPW: "", NewPW: "", UserID: req.UserID, Action: utils.UserDeleteAccount,
+		PrevPW: "", NewPW: "", UserID: req.UserID, Action: utils.UserCreateWallet,
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
