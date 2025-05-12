@@ -48,3 +48,14 @@ func RetreivePayloads() ([]Payload, error) {
 	}
 	return payloads, nil
 }
+
+func ClearPayloads() error {
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+	if err := rdb.Del(ctx, "payloads").Err(); err != nil {
+		return err
+	}
+	fmt.Println("cleared all payloads from Redis")
+	return nil
+}

@@ -59,6 +59,8 @@ func appendEntryRPCStub(node *Node, peer string, entrySlice []LogEntry, ct, prev
 	for i, entry := range entrySlice {
 		if protoEntry, err := ToProtoLogEntry(entry, node.Log.DB); err == nil {
 			protoEntries[i] = protoEntry
+		} else {
+			return nil, err
 		}
 	}
 	req := &pb.AppendEntriesRequest{

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"raft/api_server"
 	"raft/rpc_server"
 	"raft/state"
 	"sync"
@@ -17,17 +18,30 @@ func main() {
 	if err1 != nil {
 		panic(err1)
 	}
+	n1APIServer := api_server.NewApiServer(n1)
+	if apiErr := n1APIServer.Run(":8001"); apiErr != nil {
+		panic(apiErr)
+	}
+
 	n1.PrintDetails()
 
 	n2, err2 := state.NewNode("9002", peers)
 	if err2 != nil {
 		panic(err2)
 	}
+	n2APIServer := api_server.NewApiServer(n2)
+	if apiErr := n2APIServer.Run(":8002"); apiErr != nil {
+		panic(apiErr)
+	}
 	n2.PrintDetails()
 
 	n3, err3 := state.NewNode("9003", peers)
 	if err3 != nil {
 		panic(err3)
+	}
+	n3APIServer := api_server.NewApiServer(n3)
+	if apiErr := n3APIServer.Run(":8003"); apiErr != nil {
+		panic(apiErr)
 	}
 	n3.PrintDetails()
 

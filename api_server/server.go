@@ -19,5 +19,10 @@ func NewApiServer(n *state.Node) *APIServer {
 }
 
 func (s *APIServer) Run(add string) error {
-	return s.Router.Run(add)
+	go func() {
+		if err := s.Router.Run(add); err != nil {
+			panic(err)
+		}
+	}()
+	return nil
 }

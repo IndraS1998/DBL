@@ -63,6 +63,7 @@ func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error)
 		return utils.UserPayload{}, fmt.Errorf("unsopported table reference:%s", tableRef)
 	}
 }
+
 func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 	refTable := entry.ReferenceTable
 
@@ -97,6 +98,12 @@ func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 		var payload AdminPayload
 		if err := db.First(&payload, entry.PayloadID).Error; err != nil {
 			return nil, fmt.Errorf("failed to load admin payload: %w", err)
+		}
+		if payload.FirstName == nil || payload.LastName == nil || payload.HashedPassword == nil || payload.Email == nil {
+			fmt.Println("what i just edited")
+			fmt.Println(entry.Term, string(refTable), payload.FirstName, payload.LastName,
+				payload.HashedPassword, payload.Action, payload.AdminID, payload.UserId)
+			return nil, fmt.Errorf("nil field")
 		}
 		return &pb.LogEntry{
 			Term:           entry.Term,

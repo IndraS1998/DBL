@@ -186,6 +186,7 @@ func (node *Node) AppendEntry() {
 		requests = []utils.Payload{}
 		fmt.Println(err)
 	}
+	fmt.Println(requests)
 	// get the term
 	ct, err := node.Log.GetCurrentTerm()
 	if err != nil {
@@ -199,6 +200,10 @@ func (node *Node) AppendEntry() {
 			log.Printf("could not append log entry: %v", err)
 			return
 		}
+	}
+	errPayload := utils.ClearPayloads()
+	if errPayload != nil {
+		fmt.Print(errPayload)
 	}
 	// just for testing purposes
 	ent, e2 := node.Log.GetAllLogEntries()
@@ -225,12 +230,11 @@ func (node *Node) AppendEntry() {
 				entry, err := node.Log.GetLogEntry(int(prevIndex))
 				if err != nil {
 					log.Printf("could not get log entry: %v", err)
-
 				}
 				prevTerm = entry.Term
 			}
 
-			//fetch the actual commands based on the last commited entryso as to make the node be up to date
+			//fetch the actual commands based on the last commited entry so as to make the node be up to date
 			entries, err := node.Log.GetCommandsFromIndex(int(node.NextIndex[peer]))
 			if err != nil {
 				log.Printf("could not get commands from index: %v", err)
@@ -266,7 +270,10 @@ func (node *Node) AppendEntry() {
 			if !open {
 				// All goroutines are done
 				if responses > int32(len(node.Peers)/2) {
-					lastEntry, _ := node.Log.GetLastLogEntry()
+					lastEntry, err := node.Log.GetLastLogEntry()
+					if err != nil {
+						return
+					}
 					node.Mu.Lock()
 					node.CommitIndex = int32(lastEntry.Index)
 					node.Mu.Unlock()
@@ -298,7 +305,7 @@ func (n *Node) Commit() {
 		defer n.Mu.Unlock()
 		for _, entry := range entries {
 			// cast the payload to the correct type
-			if entry.Status == utils.TxSuccess {
+			if entry.Status == utils.TxSuccess || entry.Status == utils.TxFailed {
 				fmt.Println("Already applied:")
 				n.LastApplied++
 				continue

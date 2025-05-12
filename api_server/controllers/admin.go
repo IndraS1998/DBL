@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	sm "raft/state/stateMachine"
 	"raft/utils"
@@ -28,6 +29,7 @@ func GetAdminInfo(c *gin.Context) {
 func GetAllUsers(c *gin.Context) {
 	users, err := sm.GetUsers()
 	if err != nil {
+		fmt.Println("fetch all users error:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"Error": err})
 	} else {
 		c.JSON(http.StatusOK, gin.H{"Users": users})
@@ -37,8 +39,8 @@ func GetAllUsers(c *gin.Context) {
 
 func AdminSignin(c *gin.Context) {
 	type AdminSigninPayload struct {
-		HashedPassword string `form:"hashed_password" binding:"required"`
-		Email          string `form:"email" binding:"required"`
+		HashedPassword string `json:"hashed_password" binding:"required"`
+		Email          string `json:"email" binding:"required"`
 	}
 	var req AdminSigninPayload
 	if err := c.ShouldBind(&req); err != nil {
@@ -60,16 +62,17 @@ func AdminSignin(c *gin.Context) {
 // MODIFICATIONS
 func AdminSignup(c *gin.Context) {
 	type AdminSignupPayload struct {
-		FirstName      string `form:"first_name" binding:"required"`
-		LastName       string `form:"last_name" binding:"required"`
-		HashedPassword string `form:"hashed_password" binding:"required"`
-		Email          string `form:"email" binding:"required"`
+		FirstName      string `json:"first_name" binding:"required"`
+		LastName       string `json:"last_name" binding:"required"`
+		HashedPassword string `json:"hashed_password" binding:"required"`
+		Email          string `json:"email" binding:"required"`
 	}
 	var req AdminSignupPayload
 	if err := c.ShouldBind(&req); err != nil {
 		c.JSON(400, gin.H{"error": err})
 		return
 	}
+
 	payload := utils.AdminPayload{
 		FirstName: req.FirstName, LastName: req.LastName, HashedPassword: req.HashedPassword, Email: req.Email,
 		AdminID: -1, UserId: -1, Action: utils.AdminCreateAccount,
@@ -84,8 +87,8 @@ func AdminSignup(c *gin.Context) {
 
 func ValidateUser(c *gin.Context) {
 	type AdminValidationPayload struct {
-		AdminId int `form:"admin_id" binding:"required"`
-		UserID  int `form:"user_id" binding:"required"`
+		AdminId int `json:"admin_id" binding:"required"`
+		UserID  int `json:"user_id" binding:"required"`
 	}
 	var req AdminValidationPayload
 	if err := c.ShouldBind(&req); err != nil {

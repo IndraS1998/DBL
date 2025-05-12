@@ -32,8 +32,8 @@ func GetUserInfo(c *gin.Context) {
 
 func UserSignin(c *gin.Context) {
 	type UserSigninRequest struct {
-		Email          string `form:"email" binding:"required"`
-		HashedPassword string `form:"password" binding:"required"`
+		Email          string `json:"email" binding:"required"`
+		HashedPassword string `json:"password" binding:"required"`
 	}
 	var req UserSigninRequest
 	if err := c.ShouldBind(&req); err != nil {
@@ -55,14 +55,14 @@ func UserSignin(c *gin.Context) {
 // WRITES,DELETES AND UPDATES
 func UserSignup(c *gin.Context) {
 	type UserSignupRequest struct {
-		FirstName                string    `form:"first_name" binding:"required"`
-		LastName                 string    `form:"last_name" binding:"required"`
-		HashedPassword           string    `form:"password" binding:"required"`
-		Email                    string    `form:"email" binding:"required"`
-		DateOfBirth              time.Time `form:"dob" binding:"required"`
-		IdentificationNumber     string    `form:"id_number" binding:"required"`
-		IdentificationImageFront string    `form:"id_image_front" binding:"required"`
-		IdentificationImageBack  string    `form:"id_image_back" binding:"required"`
+		FirstName                string    `json:"first_name" binding:"required"`
+		LastName                 string    `json:"last_name" binding:"required"`
+		HashedPassword           string    `json:"password" binding:"required"`
+		Email                    string    `json:"email" binding:"required"`
+		DateOfBirth              time.Time `json:"dob" binding:"required"`
+		IdentificationNumber     string    `json:"id_number" binding:"required"`
+		IdentificationImageFront string    `json:"id_image_front" binding:"required"`
+		IdentificationImageBack  string    `json:"id_image_back" binding:"required"`
 	}
 	var req UserSignupRequest
 	if err := c.ShouldBind(&req); err != nil {
@@ -88,9 +88,9 @@ func UserSignup(c *gin.Context) {
 
 func UpdatePassword(c *gin.Context) {
 	var req struct {
-		UserID      int    `form:"user_id" binding:"required"`
-		OldPassword string `form:"old_password" binding:"required"`
-		NewPassword string `form:"new_password" binding:"required"`
+		UserID      int    `json:"user_id" binding:"required"`
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -114,7 +114,7 @@ func UpdatePassword(c *gin.Context) {
 
 func DeleteUser(c *gin.Context) {
 	var req struct {
-		UserID int `form:"user_id" binding:"required"`
+		UserID int `json:"user_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -137,7 +137,7 @@ func DeleteUser(c *gin.Context) {
 
 func CreateWallet(c *gin.Context) {
 	var req struct {
-		UserID int `form:"user_id" binding:"required"`
+		UserID int `json:"user_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {

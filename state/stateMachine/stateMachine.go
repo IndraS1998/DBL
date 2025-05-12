@@ -31,7 +31,8 @@ func InitStateMachine(path string) (*StateMachine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed automigrate %w", err)
 	}
-	defaultSM := &StateMachine{DB: db}
+	defaultSM = &StateMachine{DB: db}
+	fmt.Println("successfully initialized state machine")
 	return defaultSM, nil
 }
 

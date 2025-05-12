@@ -14,10 +14,12 @@ type Wallet struct {
 }
 
 type Admin struct {
-	AdminID                             int `gorm:"primaryKey"`
-	FirstName, LastName, HashedPassword string
-	Email                               string `gorm:"unique"`
-	Active                              bool   `gorm:"default:true"`
+	AdminID        int `gorm:"primaryKey"`
+	FirstName      string
+	LastName       string
+	HashedPassword string
+	Email          string `gorm:"unique"`
+	Active         bool   `gorm:"default:true"`
 }
 
 type WalletOperation struct {
