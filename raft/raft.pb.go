@@ -521,8 +521,9 @@ func (x *AppendEntriesRequest) GetLeaderCommit() int32 {
 
 type LogEntry struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
-	Term           int32                  `protobuf:"varint,1,opt,name=term,proto3" json:"term,omitempty"`
-	ReferenceTable string                 `protobuf:"bytes,2,opt,name=referenceTable,proto3" json:"referenceTable,omitempty"`
+	Index          int64                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Term           int32                  `protobuf:"varint,2,opt,name=term,proto3" json:"term,omitempty"`
+	ReferenceTable string                 `protobuf:"bytes,3,opt,name=referenceTable,proto3" json:"referenceTable,omitempty"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*LogEntry_UserPayload
@@ -561,6 +562,13 @@ func (x *LogEntry) ProtoReflect() protoreflect.Message {
 // Deprecated: Use LogEntry.ProtoReflect.Descriptor instead.
 func (*LogEntry) Descriptor() ([]byte, []int) {
 	return file_raft_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *LogEntry) GetIndex() int64 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
 }
 
 func (x *LogEntry) GetTerm() int32 {
@@ -616,15 +624,15 @@ type isLogEntry_Payload interface {
 }
 
 type LogEntry_UserPayload struct {
-	UserPayload *UserPayload `protobuf:"bytes,3,opt,name=userPayload,proto3,oneof"`
+	UserPayload *UserPayload `protobuf:"bytes,4,opt,name=userPayload,proto3,oneof"`
 }
 
 type LogEntry_AdminPayload struct {
-	AdminPayload *AdminPayload `protobuf:"bytes,4,opt,name=adminPayload,proto3,oneof"`
+	AdminPayload *AdminPayload `protobuf:"bytes,5,opt,name=adminPayload,proto3,oneof"`
 }
 
 type LogEntry_WalletOperationPayload struct {
-	WalletOperationPayload *WalletOperationPayload `protobuf:"bytes,5,opt,name=walletOperationPayload,proto3,oneof"`
+	WalletOperationPayload *WalletOperationPayload `protobuf:"bytes,6,opt,name=walletOperationPayload,proto3,oneof"`
 }
 
 func (*LogEntry_UserPayload) isLogEntry_Payload() {}
@@ -732,13 +740,14 @@ const file_raft_proto_rawDesc = "" +
 	"\fprevLogIndex\x18\x03 \x01(\x05R\fprevLogIndex\x12 \n" +
 	"\vprevLogTerm\x18\x04 \x01(\x05R\vprevLogTerm\x12(\n" +
 	"\aentries\x18\x05 \x03(\v2\x0e.raft.LogEntryR\aentries\x12\"\n" +
-	"\fleaderCommit\x18\x06 \x01(\x05R\fleaderCommit\"\x9a\x02\n" +
-	"\bLogEntry\x12\x12\n" +
-	"\x04term\x18\x01 \x01(\x05R\x04term\x12&\n" +
-	"\x0ereferenceTable\x18\x02 \x01(\tR\x0ereferenceTable\x125\n" +
-	"\vuserPayload\x18\x03 \x01(\v2\x11.raft.UserPayloadH\x00R\vuserPayload\x128\n" +
-	"\fadminPayload\x18\x04 \x01(\v2\x12.raft.AdminPayloadH\x00R\fadminPayload\x12V\n" +
-	"\x16walletOperationPayload\x18\x05 \x01(\v2\x1c.raft.WalletOperationPayloadH\x00R\x16walletOperationPayloadB\t\n" +
+	"\fleaderCommit\x18\x06 \x01(\x05R\fleaderCommit\"\xb0\x02\n" +
+	"\bLogEntry\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x03R\x05index\x12\x12\n" +
+	"\x04term\x18\x02 \x01(\x05R\x04term\x12&\n" +
+	"\x0ereferenceTable\x18\x03 \x01(\tR\x0ereferenceTable\x125\n" +
+	"\vuserPayload\x18\x04 \x01(\v2\x11.raft.UserPayloadH\x00R\vuserPayload\x128\n" +
+	"\fadminPayload\x18\x05 \x01(\v2\x12.raft.AdminPayloadH\x00R\fadminPayload\x12V\n" +
+	"\x16walletOperationPayload\x18\x06 \x01(\v2\x1c.raft.WalletOperationPayloadH\x00R\x16walletOperationPayloadB\t\n" +
 	"\apayload\"E\n" +
 	"\x15AppendEntriesResponse\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\x05R\x04term\x12\x18\n" +

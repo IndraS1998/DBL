@@ -57,10 +57,11 @@ type WalletOperationPayload struct {
 }
 
 type LogEntry struct {
-	Index          int `gorm:"primaryKey;autoIncrement"` // Log index
+	Index          int // Log index
 	Term           int32
 	ReferenceTable utils.RefTable
 	Status         utils.TransactionStatus `gorm:"default:'pending'"`
+	Applied        bool                    `gorm:"default:false"`
 	PayloadID      uint
 }
 
@@ -109,7 +110,7 @@ func (ps *PersistentState) GetVotedFor() (string, error) {
 }
 
 // Managing Log Entries (Append, Read, Delete)
-func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
+func (ps *PersistentState) AppendLogEntry(index int, term int32, p utils.Payload) error {
 	refTable := p.GetRefTable()
 	return ps.DB.Transaction(func(tx *gorm.DB) error {
 		switch refTable {
@@ -134,7 +135,7 @@ func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
 					return fmt.Errorf("failed to created the associated user payload:%w", err)
 				}
 				logEntry := LogEntry{
-					Term: term, ReferenceTable: refTable, PayloadID: userPayload.ID,
+					Index: index, Term: term, ReferenceTable: refTable, PayloadID: userPayload.ID,
 				}
 				if err := tx.Create(&logEntry).Error; err != nil {
 					return fmt.Errorf("failed to create the log entry:%w", err)
@@ -159,7 +160,7 @@ func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
 					return fmt.Errorf("failed to create admin payload: %w", err)
 				}
 				logEntry := LogEntry{
-					Term: term, ReferenceTable: refTable, PayloadID: adminPayload.ID,
+					Index: index, Term: term, ReferenceTable: refTable, PayloadID: adminPayload.ID,
 				}
 				if err := tx.Create(&logEntry).Error; err != nil {
 					return fmt.Errorf("failed to create log entry for admin payload:%w", err)
@@ -181,7 +182,7 @@ func (ps *PersistentState) AppendLogEntry(term int32, p utils.Payload) error {
 					return fmt.Errorf("failed to create wallet payload: %w", err)
 				}
 				logEntry := LogEntry{
-					Term: term, ReferenceTable: refTable, PayloadID: walletPayload.ID,
+					Index: index, Term: term, ReferenceTable: refTable, PayloadID: walletPayload.ID,
 				}
 				if err := tx.Create(&logEntry).Error; err != nil {
 					return fmt.Errorf("failed to create log entry for wallet payload:%w", err)
