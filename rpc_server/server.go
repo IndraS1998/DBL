@@ -50,7 +50,6 @@ func (s *server) RequestVote(_ context.Context, vr *pb.RequestVoteRequest) (*pb.
 }
 
 func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
-	log.Printf("%v received AppendEntries from %v with term %v\n", s.node.Address, req.LeaderId, req.Term)
 	s.node.ResetTimerChan <- true
 
 	// Check if the term is less than the current term
@@ -69,8 +68,9 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	if req.PrevLogIndex == 0 {
 		logLength, _ := s.node.Log.GetLogLength()
 		if logLength != 0 {
-			log.Printf("message from: %s, leader thinks prev log is 0 while it is %v\n", s.node.Address, logLength)
-			return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
+			if err := s.node.Log.DeleteLogEntriesFrom(1); err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		// get log entry at point prevLogIndex
@@ -91,6 +91,17 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 		if logEntry.Term != req.PrevLogTerm {
 			log.Printf("the entry at index : %v, has term: %v but term : %v was provided", req.PrevLogIndex, logEntry.Term, req.PrevLogTerm)
 			return &pb.AppendEntriesResponse{Term: ct, Success: false}, nil
+		} else {
+			// if previous logs match i need to delete any eventual next log
+			if _, err := s.node.Log.GetLogEntry(int(req.PrevLogIndex) + 1); err != nil {
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					if delEr := s.node.Log.DeleteLogEntriesFrom(int(req.PrevLogIndex) + 1); delEr != nil {
+						return nil, delEr
+					}
+				} else {
+					fmt.Println("prev log match and there is no next log. Everything ok")
+				}
+			}
 		}
 	}
 
@@ -110,7 +121,7 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 		if err != nil {
 			return nil, err
 		}
-		err1 := s.node.Log.AppendLogEntry(entry.Term, payload)
+		err1 := s.node.Log.AppendLogEntry(int(entry.Index), entry.Term, payload)
 		if err1 != nil {
 			log.Printf("could not insert log entry: %v", err)
 			return nil, err1

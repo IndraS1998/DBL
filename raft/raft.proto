@@ -64,12 +64,13 @@ message AppendEntriesRequest{
 }
 
 message LogEntry{
-    int32 term = 1;
-    string referenceTable = 2;
+    int64 index = 1;
+    int32 term = 2;
+    string referenceTable = 3;
     oneof payload{
-        UserPayload userPayload = 3;
-        AdminPayload adminPayload = 4;
-        WalletOperationPayload walletOperationPayload = 5;
+        UserPayload userPayload = 4;
+        AdminPayload adminPayload = 5;
+        WalletOperationPayload walletOperationPayload = 6;
     }
 }
 

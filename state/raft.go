@@ -180,7 +180,7 @@ func (node *Node) AppendEntry() {
 	ch := make(chan bool, len(node.Peers))
 	responses := int32(1)
 
-	// Generate and append commands to leader's log
+	// Get all staged commands from redis
 	requests, err := utils.RetreivePayloads()
 	if err != nil {
 		requests = []utils.Payload{}
@@ -194,9 +194,15 @@ func (node *Node) AppendEntry() {
 		return
 	}
 
+	//get log length
+	logLength, errL := node.Log.GetLogLength()
+	if errL != nil {
+		fmt.Println("un able to get the log length", errL)
+		return
+	}
 	// append operations to log
 	for _, payload := range requests {
-		if err := node.Log.AppendLogEntry(ct, payload); err != nil {
+		if err := node.Log.AppendLogEntry(int(logLength)+1, ct, payload); err != nil {
 			log.Printf("could not append log entry: %v", err)
 			return
 		}
@@ -251,7 +257,9 @@ func (node *Node) AppendEntry() {
 			} else {
 				// TODO : log matching property should end at 0, in that case wipe all follower log
 				node.Mu.Lock()
-				node.NextIndex[peer]--
+				if node.NextIndex[peer] > 1 {
+					node.NextIndex[peer]--
+				}
 				node.Mu.Unlock()
 				ch <- false
 			}
@@ -270,6 +278,7 @@ func (node *Node) AppendEntry() {
 		case granted, open := <-ch:
 			if !open {
 				// All goroutines are done
+				fmt.Printf("\n************** acks received: %v ********************\n", responses)
 				if responses > int32(len(node.Peers)/2) {
 					lastEntry, err := node.Log.GetLastLogEntry()
 					if err != nil {
@@ -306,8 +315,7 @@ func (n *Node) Commit() {
 		defer n.Mu.Unlock()
 		for _, entry := range entries {
 			// cast the payload to the correct type
-			if entry.Status == utils.TxSuccess || entry.Status == utils.TxFailed {
-				fmt.Println("Already applied:")
+			if entry.Applied {
 				n.LastApplied++
 				continue
 			} else {
@@ -316,8 +324,6 @@ func (n *Node) Commit() {
 
 					var payload UserPayload
 					if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
-						fmt.Printf("failed to load user payload:")
-						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
 						return
 					}
 					userPayload := utils.UserPayload{
@@ -335,17 +341,17 @@ func (n *Node) Commit() {
 						Action:                   payload.Action,
 					}
 					if err2 := n.StateMachine.ApplyUserOperation(userPayload); err2 != nil {
-						fmt.Printf("failed to apply user operation: %v", err2)
-						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-						return
+						n.Log.DB.Model(&entry).Where("`index` = ?", entry.Index).Updates(map[string]interface{}{
+							"applied": true,
+							"status":  utils.TxFailed,
+						})
+						continue
 					}
 
 				case utils.RefAdmin:
 
 					var payload AdminPayload
 					if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
-						fmt.Printf("failed to load user payload:")
-						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
 						return
 					}
 					adminPayload := utils.AdminPayload{
@@ -358,17 +364,17 @@ func (n *Node) Commit() {
 						Action:         payload.Action,
 					}
 					if err2 := n.StateMachine.ApplyAdminOperations(adminPayload); err2 != nil {
-						fmt.Printf("failed to apply entry to state machine: %v", err2)
-						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-						return
+						n.Log.DB.Model(&entry).Where("`index` = ?", entry.Index).Updates(map[string]interface{}{
+							"applied": true,
+							"status":  utils.TxFailed,
+						})
+						continue
 					}
 
 				case utils.RefWallet:
 
 					var payload WalletOperationPayload
 					if err := n.Log.DB.First(&payload, entry.PayloadID).Error; err != nil {
-						fmt.Printf("failed to load wallet payload")
-						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
 						return
 					}
 					walletPayload := utils.WalletOperationPayload{
@@ -378,18 +384,27 @@ func (n *Node) Commit() {
 						Action:  payload.Action,
 					}
 					if err2 := n.StateMachine.ApplyWalletOperation(walletPayload); err2 != nil {
-						fmt.Printf("failed to apply entry to state machine: %v", err2)
-						n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
-						return
+						n.Log.DB.Model(&entry).Where("`index` = ?", entry.Index).Updates(map[string]interface{}{
+							"applied": true,
+							"status":  utils.TxFailed,
+						})
+						continue
 					}
 
 				default:
 					fmt.Println("Unknown reference table")
-					n.Log.DB.Model(&entry).Update("status", utils.TxFailed)
+					n.Log.DB.Model(&entry).Where("`index` = ?", entry.Index).Updates(map[string]interface{}{
+						"applied": true,
+						"status":  utils.TxFailed,
+					})
+					continue
 				}
 				//TODO : this should be in some transaction format
+				n.Log.DB.Model(&entry).Where("`index` = ?", entry.Index).Updates(map[string]interface{}{
+					"applied": true,
+					"status":  utils.TxSuccess,
+				})
 				n.LastApplied++
-				n.Log.DB.Model(&entry).Update("status", utils.TxSuccess)
 			}
 		}
 	} else {

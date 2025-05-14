@@ -10,6 +10,7 @@ import (
 	"raft/utils"
 )
 
+// proto log entry -> gorm log entry
 func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error) {
 	switch tableRef {
 	case string(utils.RefUser):
@@ -64,6 +65,7 @@ func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error)
 	}
 }
 
+// Gorm log Entry -> proto Lof entry
 func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 	refTable := entry.ReferenceTable
 
@@ -74,6 +76,7 @@ func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 			return nil, fmt.Errorf("failed to load user payload: %w", err)
 		}
 		return &pb.LogEntry{
+			Index:          int64(entry.Index),
 			Term:           entry.Term,
 			ReferenceTable: string(refTable),
 			Payload: &pb.LogEntry_UserPayload{
@@ -106,6 +109,7 @@ func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 			return nil, fmt.Errorf("nil field")
 		}
 		return &pb.LogEntry{
+			Index:          int64(entry.Index),
 			Term:           entry.Term,
 			ReferenceTable: string(refTable),
 			Payload: &pb.LogEntry_AdminPayload{
@@ -127,6 +131,7 @@ func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 			return nil, fmt.Errorf("failed to load wallet payload: %w", err)
 		}
 		return &pb.LogEntry{
+			Index:          int64(entry.Index),
 			Term:           entry.Term,
 			ReferenceTable: string(refTable),
 			Payload: &pb.LogEntry_WalletOperationPayload{
