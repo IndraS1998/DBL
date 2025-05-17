@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"raft/state"
 	sm "raft/state/stateMachine"
 	"raft/utils"
 	"strconv"
@@ -13,6 +14,21 @@ import (
 // READS
 func Pong(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Pong"})
+}
+
+func GetLogEntry(c *gin.Context) {
+	strIndex := c.Query("index")
+	index, err := strconv.Atoi(strIndex)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid index"})
+		return
+	}
+	logEntry, err := state.GetLogEntryForApi(index)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"Entry": logEntry})
 }
 
 func GetUserInfo(c *gin.Context) {
