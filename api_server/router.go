@@ -10,6 +10,7 @@ import (
 func SetupRoutes(r *gin.Engine, node *state.Node) {
 	r.Use(LeaderOnly(node))
 	r.GET("/ping", controllers.Pong)
+	r.GET("/entry", controllers.GetLogEntry)
 	user := r.Group("/api/user")
 	{
 		user.GET("/", controllers.GetUserInfo)

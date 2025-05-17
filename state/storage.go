@@ -9,6 +9,10 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	defaultStorage *PersistentState
+)
+
 type PersistentState struct {
 	DB *gorm.DB
 }
@@ -84,8 +88,8 @@ func InitPersistentState(filePath string) (*PersistentState, error) {
 		// Create default if not found
 		db.Create(&MetaState{ID: 1, CurrentTerm: 0, VotedFor: ""})
 	}
-
-	return &PersistentState{DB: db}, nil
+	defaultStorage = &PersistentState{DB: db}
+	return defaultStorage, nil
 }
 
 // Read/Write Methods for MetaState
@@ -195,6 +199,15 @@ func (ps *PersistentState) AppendLogEntry(index int, term int32, p utils.Payload
 			return fmt.Errorf("unsupported operation: %s", refTable)
 		}
 	})
+}
+
+func GetLogEntryForApi(index int) (*LogEntry, error) {
+	if defaultStorage == nil {
+		return nil, fmt.Errorf("storage not yet initialized")
+	}
+	var entry LogEntry
+	err := defaultStorage.DB.First(&entry, "`index` = ?", index).Error
+	return &entry, err
 }
 
 func (ps *PersistentState) GetLogEntry(index int) (*LogEntry, error) {
