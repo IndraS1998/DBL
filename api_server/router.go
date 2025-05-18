@@ -3,11 +3,23 @@ package api_server
 import (
 	"raft/api_server/controllers"
 	"raft/state"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRoutes(r *gin.Engine, node *state.Node) {
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"}, // or "*" in development
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
 	r.Use(LeaderOnly(node))
 	r.GET("/ping", controllers.Pong)
 	r.GET("/entry", controllers.GetLogEntry)
