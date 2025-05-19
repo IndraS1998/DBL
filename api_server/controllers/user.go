@@ -17,13 +17,8 @@ func Pong(c *gin.Context) {
 }
 
 func GetLogEntry(c *gin.Context) {
-	strIndex := c.Query("index")
-	index, err := strconv.Atoi(strIndex)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid index"})
-		return
-	}
-	logEntry, err := state.GetLogEntryForApi(index)
+	poll_id := c.Query("poll_id")
+	logEntry, err := state.GetLogEntryForApi(poll_id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
 		return

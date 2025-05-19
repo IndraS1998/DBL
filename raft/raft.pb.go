@@ -157,6 +157,7 @@ type UserPayload struct {
 	NewPW                    string                 `protobuf:"bytes,10,opt,name=newPW,proto3" json:"newPW,omitempty"`
 	UserID                   int64                  `protobuf:"varint,11,opt,name=userID,proto3" json:"userID,omitempty"`
 	Action                   string                 `protobuf:"bytes,12,opt,name=action,proto3" json:"action,omitempty"` // create, update, delete
+	PollID                   string                 `protobuf:"bytes,13,opt,name=PollID,proto3" json:"PollID,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -275,6 +276,13 @@ func (x *UserPayload) GetAction() string {
 	return ""
 }
 
+func (x *UserPayload) GetPollID() string {
+	if x != nil {
+		return x.PollID
+	}
+	return ""
+}
+
 type AdminPayload struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	FirstName      string                 `protobuf:"bytes,1,opt,name=firstName,proto3" json:"firstName,omitempty"`
@@ -284,6 +292,7 @@ type AdminPayload struct {
 	AdminID        int64                  `protobuf:"varint,5,opt,name=adminID,proto3" json:"adminID,omitempty"`
 	UserId         int64                  `protobuf:"varint,6,opt,name=userId,proto3" json:"userId,omitempty"`
 	Action         string                 `protobuf:"bytes,7,opt,name=action,proto3" json:"action,omitempty"`
+	PollID         string                 `protobuf:"bytes,8,opt,name=PollID,proto3" json:"PollID,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -367,12 +376,20 @@ func (x *AdminPayload) GetAction() string {
 	return ""
 }
 
+func (x *AdminPayload) GetPollID() string {
+	if x != nil {
+		return x.PollID
+	}
+	return ""
+}
+
 type WalletOperationPayload struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Wallet1       int64                  `protobuf:"varint,1,opt,name=wallet1,proto3" json:"wallet1,omitempty"`
 	Wallet2       int64                  `protobuf:"varint,2,opt,name=wallet2,proto3" json:"wallet2,omitempty"`
 	Amount        int64                  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
 	Action        string                 `protobuf:"bytes,4,opt,name=action,proto3" json:"action,omitempty"`
+	PollID        string                 `protobuf:"bytes,5,opt,name=PollID,proto3" json:"PollID,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -431,6 +448,13 @@ func (x *WalletOperationPayload) GetAmount() int64 {
 func (x *WalletOperationPayload) GetAction() string {
 	if x != nil {
 		return x.Action
+	}
+	return ""
+}
+
+func (x *WalletOperationPayload) GetPollID() string {
+	if x != nil {
+		return x.PollID
 	}
 	return ""
 }
@@ -706,7 +730,7 @@ const file_raft_proto_rawDesc = "" +
 	"\vlastLogTerm\x18\x04 \x01(\x05R\vlastLogTerm\"K\n" +
 	"\x13RequestVoteResponse\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\x05R\x04term\x12 \n" +
-	"\vvoteGranted\x18\x02 \x01(\bR\vvoteGranted\"\xcb\x03\n" +
+	"\vvoteGranted\x18\x02 \x01(\bR\vvoteGranted\"\xe3\x03\n" +
 	"\vUserPayload\x12\x1c\n" +
 	"\tfirstName\x18\x01 \x01(\tR\tfirstName\x12\x1a\n" +
 	"\blastName\x18\x02 \x01(\tR\blastName\x12&\n" +
@@ -720,7 +744,8 @@ const file_raft_proto_rawDesc = "" +
 	"\x05newPW\x18\n" +
 	" \x01(\tR\x05newPW\x12\x16\n" +
 	"\x06userID\x18\v \x01(\x03R\x06userID\x12\x16\n" +
-	"\x06action\x18\f \x01(\tR\x06action\"\xd0\x01\n" +
+	"\x06action\x18\f \x01(\tR\x06action\x12\x16\n" +
+	"\x06PollID\x18\r \x01(\tR\x06PollID\"\xe8\x01\n" +
 	"\fAdminPayload\x12\x1c\n" +
 	"\tfirstName\x18\x01 \x01(\tR\tfirstName\x12\x1a\n" +
 	"\blastName\x18\x02 \x01(\tR\blastName\x12&\n" +
@@ -728,12 +753,14 @@ const file_raft_proto_rawDesc = "" +
 	"\x05email\x18\x04 \x01(\tR\x05email\x12\x18\n" +
 	"\aadminID\x18\x05 \x01(\x03R\aadminID\x12\x16\n" +
 	"\x06userId\x18\x06 \x01(\x03R\x06userId\x12\x16\n" +
-	"\x06action\x18\a \x01(\tR\x06action\"|\n" +
+	"\x06action\x18\a \x01(\tR\x06action\x12\x16\n" +
+	"\x06PollID\x18\b \x01(\tR\x06PollID\"\x94\x01\n" +
 	"\x16WalletOperationPayload\x12\x18\n" +
 	"\awallet1\x18\x01 \x01(\x03R\awallet1\x12\x18\n" +
 	"\awallet2\x18\x02 \x01(\x03R\awallet2\x12\x16\n" +
 	"\x06amount\x18\x03 \x01(\x03R\x06amount\x12\x16\n" +
-	"\x06action\x18\x04 \x01(\tR\x06action\"\xda\x01\n" +
+	"\x06action\x18\x04 \x01(\tR\x06action\x12\x16\n" +
+	"\x06PollID\x18\x05 \x01(\tR\x06PollID\"\xda\x01\n" +
 	"\x14AppendEntriesRequest\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\x05R\x04term\x12\x1a\n" +
 	"\bleaderId\x18\x02 \x01(\tR\bleaderId\x12\"\n" +

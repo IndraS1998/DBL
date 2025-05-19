@@ -66,6 +66,7 @@ func AdminSignup(c *gin.Context) {
 		LastName       string `json:"last_name" binding:"required"`
 		HashedPassword string `json:"hashed_password" binding:"required"`
 		Email          string `json:"email" binding:"required"`
+		PollID         string `json:"poll_id" binding:"required"`
 	}
 	var req AdminSignupPayload
 	if err := c.ShouldBind(&req); err != nil {
@@ -75,7 +76,7 @@ func AdminSignup(c *gin.Context) {
 
 	payload := utils.AdminPayload{
 		FirstName: req.FirstName, LastName: req.LastName, HashedPassword: req.HashedPassword, Email: req.Email,
-		AdminID: -1, UserId: -1, Action: utils.AdminCreateAccount,
+		AdminID: -1, UserId: -1, Action: utils.AdminCreateAccount, PollID: req.PollID,
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
@@ -87,8 +88,9 @@ func AdminSignup(c *gin.Context) {
 
 func ValidateUser(c *gin.Context) {
 	type AdminValidationPayload struct {
-		AdminId int `json:"admin_id" binding:"required"`
-		UserID  int `json:"user_id" binding:"required"`
+		AdminId int    `json:"admin_id" binding:"required"`
+		UserID  int    `json:"user_id" binding:"required"`
+		PollID  string `json:"poll_id" binding:"required"`
 	}
 	var req AdminValidationPayload
 	if err := c.ShouldBind(&req); err != nil {
@@ -97,7 +99,7 @@ func ValidateUser(c *gin.Context) {
 	}
 	payload := utils.AdminPayload{
 		FirstName: "", LastName: "", HashedPassword: "", Email: "",
-		AdminID: req.AdminId, UserId: req.UserID, Action: utils.AdminValidateUser,
+		AdminID: req.AdminId, UserId: req.UserID, Action: utils.AdminValidateUser, PollID: req.PollID,
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {

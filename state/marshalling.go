@@ -29,6 +29,7 @@ func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error)
 				NewPW:                    userPayload.UserPayload.NewPW,
 				UserID:                   int(userPayload.UserPayload.UserID),
 				Action:                   utils.UserAction(userPayload.UserPayload.Action),
+				PollID:                   userPayload.UserPayload.PollID,
 			}, nil
 		} else {
 			return utils.UserPayload{}, fmt.Errorf("failed to cast payload to UserPayload")
@@ -44,6 +45,7 @@ func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error)
 				AdminID:        int(adminPayload.AdminPayload.AdminID),
 				UserId:         int(adminPayload.AdminPayload.UserId),
 				Action:         utils.AdminAction(adminPayload.AdminPayload.Action),
+				PollID:         adminPayload.AdminPayload.PollID,
 			}, nil
 		} else {
 			return utils.AdminPayload{}, fmt.Errorf("failed to cast payload to AdminPayload")
@@ -55,6 +57,7 @@ func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error)
 				Wallet1: int(walletPayload.WalletOperationPayload.Wallet1),
 				Wallet2: int(walletPayload.WalletOperationPayload.Wallet2),
 				Amount:  walletPayload.WalletOperationPayload.Amount,
+				PollID:  walletPayload.WalletOperationPayload.PollID,
 				Action:  utils.WalletAction(walletPayload.WalletOperationPayload.Action),
 			}, nil
 		} else {
@@ -93,6 +96,7 @@ func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 					NewPW:                    *payload.NewPW,
 					UserID:                   int64(*payload.UserID),
 					Action:                   string(payload.Action),
+					PollID:                   entry.PollID,
 				},
 			},
 		}, nil
@@ -121,6 +125,7 @@ func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 					AdminID:        int64(*payload.AdminID),
 					UserId:         int64(*payload.UserId),
 					Action:         string(payload.Action),
+					PollID:         entry.PollID,
 				},
 			},
 		}, nil
@@ -140,6 +145,7 @@ func ToProtoLogEntry(entry LogEntry, db *gorm.DB) (*pb.LogEntry, error) {
 					Wallet2: int64(*payload.Wallet2),
 					Amount:  payload.Amount,
 					Action:  string(payload.Action),
+					PollID:  entry.PollID,
 				},
 			},
 		}, nil

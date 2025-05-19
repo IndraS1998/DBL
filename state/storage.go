@@ -67,6 +67,7 @@ type LogEntry struct {
 	Status         utils.TransactionStatus `gorm:"default:'pending'"`
 	Applied        bool                    `gorm:"default:false"`
 	PayloadID      uint
+	PollID         string
 }
 
 // Initialize the Database and Auto-Migrate
@@ -139,7 +140,7 @@ func (ps *PersistentState) AppendLogEntry(index int, term int32, p utils.Payload
 					return fmt.Errorf("failed to created the associated user payload:%w", err)
 				}
 				logEntry := LogEntry{
-					Index: index, Term: term, ReferenceTable: refTable, PayloadID: userPayload.ID,
+					Index: index, Term: term, ReferenceTable: refTable, PayloadID: userPayload.ID, PollID: payload.PollID,
 				}
 				if err := tx.Create(&logEntry).Error; err != nil {
 					return fmt.Errorf("failed to create the log entry:%w", err)
@@ -164,7 +165,7 @@ func (ps *PersistentState) AppendLogEntry(index int, term int32, p utils.Payload
 					return fmt.Errorf("failed to create admin payload: %w", err)
 				}
 				logEntry := LogEntry{
-					Index: index, Term: term, ReferenceTable: refTable, PayloadID: adminPayload.ID,
+					Index: index, Term: term, ReferenceTable: refTable, PayloadID: adminPayload.ID, PollID: payload.PollID,
 				}
 				if err := tx.Create(&logEntry).Error; err != nil {
 					return fmt.Errorf("failed to create log entry for admin payload:%w", err)
@@ -186,7 +187,7 @@ func (ps *PersistentState) AppendLogEntry(index int, term int32, p utils.Payload
 					return fmt.Errorf("failed to create wallet payload: %w", err)
 				}
 				logEntry := LogEntry{
-					Index: index, Term: term, ReferenceTable: refTable, PayloadID: walletPayload.ID,
+					Index: index, Term: term, ReferenceTable: refTable, PayloadID: walletPayload.ID, PollID: payload.PollID,
 				}
 				if err := tx.Create(&logEntry).Error; err != nil {
 					return fmt.Errorf("failed to create log entry for wallet payload:%w", err)
@@ -201,12 +202,12 @@ func (ps *PersistentState) AppendLogEntry(index int, term int32, p utils.Payload
 	})
 }
 
-func GetLogEntryForApi(index int) (*LogEntry, error) {
+func GetLogEntryForApi(poll string) (*LogEntry, error) {
 	if defaultStorage == nil {
 		return nil, fmt.Errorf("storage not yet initialized")
 	}
 	var entry LogEntry
-	err := defaultStorage.DB.First(&entry, "`index` = ?", index).Error
+	err := defaultStorage.DB.First(&entry, "poll_id = ?", poll).Error
 	return &entry, err
 }
 

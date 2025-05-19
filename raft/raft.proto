@@ -35,6 +35,7 @@ message UserPayload{
     string newPW = 10;
     int64 userID = 11;
     string action  = 12; // create, update, delete
+    string PollID = 13;
 }
 
 message AdminPayload{
@@ -45,6 +46,7 @@ message AdminPayload{
     int64 adminID = 5;
     int64 userId = 6;
     string action = 7;
+    string PollID = 8;
 }
 
 message WalletOperationPayload{
@@ -52,6 +54,7 @@ message WalletOperationPayload{
     int64 wallet2 = 2;
     int64 amount = 3;
     string action = 4;
+    string PollID = 5;
 }
 
 message AppendEntriesRequest{

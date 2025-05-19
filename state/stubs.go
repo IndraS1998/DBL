@@ -63,6 +63,7 @@ func appendEntryRPCStub(node *Node, peer string, entrySlice []LogEntry, ct, prev
 			return nil, err
 		}
 	}
+	fmt.Println(protoEntries)
 	req := &pb.AppendEntriesRequest{
 		Term:         ct,
 		LeaderId:     node.Address,
