@@ -74,6 +74,7 @@ func UserSignup(c *gin.Context) {
 		IdentificationNumber     string    `json:"id_number" binding:"required"`
 		IdentificationImageFront string    `json:"id_image_front" binding:"required"`
 		IdentificationImageBack  string    `json:"id_image_back" binding:"required"`
+		PollID                   string    `json:"poll_id" binding:"required"`
 	}
 	var req UserSignupRequest
 	if err := c.ShouldBind(&req); err != nil {
@@ -85,7 +86,8 @@ func UserSignup(c *gin.Context) {
 		FirstName: req.FirstName, LastName: req.LastName, HashedPassword: req.HashedPassword, Email: req.Email,
 		DateOfBirth:          req.DateOfBirth,
 		IdentificationNumber: req.IdentificationNumber, IdentificationImageFront: req.IdentificationImageFront,
-		IdentificationImageBack: req.IdentificationImageBack, PrevPW: "", NewPW: "", UserID: -1, Action: utils.UserCreateAccount,
+		IdentificationImageBack: req.IdentificationImageBack, PrevPW: "", NewPW: "",
+		UserID: -1, Action: utils.UserCreateAccount, PollID: req.PollID,
 	}
 	//add payload to redis queue
 	err := utils.AppendRedisPayload(payload)
@@ -102,6 +104,7 @@ func UpdatePassword(c *gin.Context) {
 		UserID      int    `json:"user_id" binding:"required"`
 		OldPassword string `json:"old_password" binding:"required"`
 		NewPassword string `json:"new_password" binding:"required"`
+		PollID      string `json:"poll_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -113,7 +116,7 @@ func UpdatePassword(c *gin.Context) {
 	payload := utils.UserPayload{
 		FirstName: "", LastName: "", HashedPassword: "", Email: "", DateOfBirth: time.Now(),
 		IdentificationNumber: "", IdentificationImageFront: "", IdentificationImageBack: "",
-		PrevPW: req.OldPassword, NewPW: req.NewPassword, UserID: req.UserID, Action: utils.UserUpdatePassword,
+		PrevPW: req.OldPassword, NewPW: req.NewPassword, UserID: req.UserID, Action: utils.UserUpdatePassword, PollID: req.PollID,
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
@@ -125,7 +128,8 @@ func UpdatePassword(c *gin.Context) {
 
 func DeleteUser(c *gin.Context) {
 	var req struct {
-		UserID int `json:"user_id" binding:"required"`
+		UserID int    `json:"user_id" binding:"required"`
+		PollID string `json:"poll_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -136,7 +140,7 @@ func DeleteUser(c *gin.Context) {
 	payload := utils.UserPayload{
 		FirstName: "", LastName: "", HashedPassword: "", Email: "", DateOfBirth: time.Now(),
 		IdentificationNumber: "", IdentificationImageFront: "", IdentificationImageBack: "",
-		PrevPW: "", NewPW: "", UserID: req.UserID, Action: utils.UserDeleteAccount,
+		PrevPW: "", NewPW: "", UserID: req.UserID, Action: utils.UserDeleteAccount, PollID: req.PollID,
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {
@@ -148,7 +152,8 @@ func DeleteUser(c *gin.Context) {
 
 func CreateWallet(c *gin.Context) {
 	var req struct {
-		UserID int `json:"user_id" binding:"required"`
+		UserID int    `json:"user_id" binding:"required"`
+		PollID string `json:"poll_id" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -159,7 +164,7 @@ func CreateWallet(c *gin.Context) {
 	payload := utils.UserPayload{
 		FirstName: "", LastName: "", HashedPassword: "", Email: "", DateOfBirth: time.Now(),
 		IdentificationNumber: "", IdentificationImageFront: "", IdentificationImageBack: "",
-		PrevPW: "", NewPW: "", UserID: req.UserID, Action: utils.UserCreateWallet,
+		PrevPW: "", NewPW: "", UserID: req.UserID, Action: utils.UserCreateWallet, PollID: req.PollID,
 	}
 	err := utils.AppendRedisPayload(payload)
 	if err != nil {

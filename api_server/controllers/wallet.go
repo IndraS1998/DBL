@@ -43,9 +43,10 @@ func GetWalletsByUser(c *gin.Context) {
 // MODIFICATIONS
 func Transfer(c *gin.Context) {
 	type transferData struct {
-		Sender_wallet_id   int   `json:"sender_wallet_id" binding:"required"`
-		Receiver_wallet_id int   `json:"receiver_wallet_id" binding:"required"`
-		Amount             int64 `json:"amount" binding:"required"`
+		Sender_wallet_id   int    `json:"sender_wallet_id" binding:"required"`
+		Receiver_wallet_id int    `json:"receiver_wallet_id" binding:"required"`
+		Amount             int64  `json:"amount" binding:"required"`
+		PollID             string `json:"poll_id" binding:"required"`
 	}
 
 	var req transferData
@@ -59,6 +60,7 @@ func Transfer(c *gin.Context) {
 		Wallet1: req.Sender_wallet_id,
 		Wallet2: req.Receiver_wallet_id,
 		Amount:  req.Amount,
+		PollID:  req.PollID,
 		Action:  utils.WalletTransfer,
 	}
 	err := utils.AppendRedisPayload(payload)
@@ -71,8 +73,9 @@ func Transfer(c *gin.Context) {
 
 func Withdraw(c *gin.Context) {
 	type withdrawData struct {
-		Wallet_id int   `json:"sender_wallet_id" binding:"required"`
-		Amount    int64 `json:"amount" binding:"required"`
+		Wallet_id int    `json:"sender_wallet_id" binding:"required"`
+		Amount    int64  `json:"amount" binding:"required"`
+		PollID    string `json:"poll_id" binding:"required"`
 	}
 	var req withdrawData
 	if err := c.ShouldBind(&req); err != nil {
@@ -84,6 +87,7 @@ func Withdraw(c *gin.Context) {
 		Wallet1: req.Wallet_id,
 		Wallet2: -1,
 		Amount:  req.Amount,
+		PollID:  req.PollID,
 		Action:  utils.WalletWithdraw,
 	}
 	err := utils.AppendRedisPayload(payload)
@@ -96,8 +100,9 @@ func Withdraw(c *gin.Context) {
 
 func Deposit(c *gin.Context) {
 	type depositData struct {
-		Wallet_id int   `json:"sender_wallet_id" binding:"required"`
-		Amount    int64 `json:"amount" binding:"required"`
+		Wallet_id int    `json:"sender_wallet_id" binding:"required"`
+		Amount    int64  `json:"amount" binding:"required"`
+		PollID    string `json:"poll_id" binding:"required"`
 	}
 	var req depositData
 	if err := c.ShouldBind(&req); err != nil {
@@ -108,6 +113,7 @@ func Deposit(c *gin.Context) {
 		Wallet1: req.Wallet_id,
 		Wallet2: -1,
 		Amount:  req.Amount,
+		PollID:  req.PollID,
 		Action:  utils.WalletDeposit,
 	}
 	err := utils.AppendRedisPayload(payload)

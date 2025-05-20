@@ -50,6 +50,43 @@ func GetUserByID(userID int) (*models.User, error) {
 	return &user, nil
 }
 
+func CountValidatedUsers() (int64, error) {
+	var count int64
+	err := defaultSM.DB.Model(&models.User{}).Where("active = ?", true).Count(&count).Error
+	return count, err
+}
+
+func CountWalletOperationsBetween(start, end time.Time) (int64, error) {
+	var count int64
+	err := defaultSM.DB.Model(&models.WalletOperation{}).
+		Where("timestamp >= ? AND timestamp < ?", start, end).
+		Count(&count).Error
+	return count, err
+}
+
+func SumWalletOperationAmountsBetween(start, end time.Time) (float64, error) {
+	var total float64
+	err := defaultSM.DB.Model(&models.WalletOperation{}).
+		Select("COALESCE(SUM(amount), 0)").
+		Where("timestamp >= ? AND timestamp < ?", start, end).
+		Scan(&total).Error
+	return total, err
+}
+
+func CountWallets() (int64, error) {
+	var count int64
+	err := defaultSM.DB.Model(&models.Wallet{}).Count(&count).Error
+	return count, err
+}
+
+func GetMostRecentWalletOperations(limit int) ([]*models.WalletOperation, error) {
+	var operations []*models.WalletOperation
+	err := defaultSM.DB.Order("timestamp DESC").
+		Limit(limit).
+		Find(&operations).Error
+	return operations, err
+}
+
 func GetUserByEmail(email string) (*models.User, error) {
 	if defaultSM == nil {
 		return nil, fmt.Errorf("state machine not yet initialized")

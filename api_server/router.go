@@ -36,9 +36,18 @@ func SetupRoutes(r *gin.Engine, node *state.Node) {
 	{
 		admin.GET("/", controllers.GetAdminInfo)
 		admin.GET("/users", controllers.GetAllUsers)
+		admin.GET("/signin", controllers.AdminSignin)
 		admin.POST("/signup", controllers.AdminSignup)
-		admin.POST("/signin", controllers.AdminSignin)
 		admin.POST("/validate/user", controllers.ValidateUser)
+	}
+
+	stats := r.Group("/api/admin/stats")
+	{
+		stats.GET("/active-users", controllers.CountActiveUsers)
+		stats.GET("/count/transactions/", controllers.CountTransactionsForMonth)
+		stats.GET("/sum/transactions/", controllers.SumTransactionsForMonth)
+		stats.GET("/wallets/count", controllers.CountWallets)
+		stats.GET("/transactions/recent", controllers.GetRecentTransactions)
 	}
 
 	wallet := r.Group("/api/wallet")

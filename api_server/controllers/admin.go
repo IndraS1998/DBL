@@ -6,6 +6,7 @@ import (
 	sm "raft/state/stateMachine"
 	"raft/utils"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,25 +39,94 @@ func GetAllUsers(c *gin.Context) {
 }
 
 func AdminSignin(c *gin.Context) {
-	type AdminSigninPayload struct {
-		HashedPassword string `json:"hashed_password" binding:"required"`
-		Email          string `json:"email" binding:"required"`
-	}
-	var req AdminSigninPayload
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": err})
-		return
-	}
-	admin, err := sm.GetAdminByEmail(req.Email)
+	email := c.Query("email")
+	password := c.Query("password")
+
+	admin, err := sm.GetAdminByEmail(email)
 	if err != nil {
 		c.JSON(http.StatusNotAcceptable, gin.H{"message": err})
 		return
 	}
-	if admin.HashedPassword != req.HashedPassword {
+	if admin.HashedPassword != password {
 		c.JSON(http.StatusNotAcceptable, gin.H{"message": "invalid credentials"})
 		return
 	}
 	c.JSON(http.StatusAccepted, gin.H{"admin": admin})
+}
+
+// CountActiveUsers returns the total number of validated (active) users
+func CountActiveUsers(c *gin.Context) {
+	count, err := sm.CountValidatedUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count active users"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"active_users": count})
+}
+
+// CountTransactionsForMonth returns the number of transactions for a given month (YYYY-MM)
+func CountTransactionsForMonth(c *gin.Context) {
+	month := c.Query("month") // expected format: YYYY-MM
+
+	start, end, err := parseMonth(month)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid month format"})
+		return
+	}
+
+	count, err := sm.CountWalletOperationsBetween(start, end)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count transactions"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"transaction_count": count})
+}
+
+// SumTransactionsForMonth returns the total sum of transaction amounts for a given month (YYYY-MM)
+func SumTransactionsForMonth(c *gin.Context) {
+	month := c.Query("month") // expected format: YYYY-MM
+	start, end, err := parseMonth(month)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid month format"})
+		return
+	}
+
+	sum, err := sm.SumWalletOperationAmountsBetween(start, end)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sum transactions"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"total_amount": sum})
+}
+
+// CountWallets returns the total number of wallets
+func CountWallets(c *gin.Context) {
+	count, err := sm.CountWallets()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count wallets"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"wallet_count": count})
+}
+
+// GetRecentTransactions returns the 5 most recent wallet operations
+func GetRecentTransactions(c *gin.Context) {
+	operations, err := sm.GetMostRecentWalletOperations(5)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch recent transactions"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"recent_transactions": operations})
+}
+
+// parseMonth parses "YYYY-MM" into start and end time.Time objects
+func parseMonth(month string) (time.Time, time.Time, error) {
+	start, err := time.Parse("2006-01", month)
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	end := start.AddDate(0, 1, 0)
+	return start, end, nil
 }
 
 // MODIFICATIONS
