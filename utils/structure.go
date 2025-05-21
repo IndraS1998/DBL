@@ -17,6 +17,7 @@ type UserPayload struct {
 	DateOfBirth                                                                            time.Time
 	IdentificationNumber, IdentificationImageFront, IdentificationImageBack, PrevPW, NewPW string
 	UserID                                                                                 int
+	PollID                                                                                 string
 	Action                                                                                 UserAction
 }
 
@@ -27,6 +28,7 @@ func (up UserPayload) GetRefTable() RefTable {
 type AdminPayload struct {
 	FirstName, LastName, HashedPassword, Email string
 	AdminID, UserId                            int
+	PollID                                     string
 	Action                                     AdminAction
 }
 
@@ -37,6 +39,7 @@ func (ap AdminPayload) GetRefTable() RefTable {
 type WalletOperationPayload struct {
 	Wallet1, Wallet2 int
 	Amount           int64
+	PollID           string
 	Action           WalletAction
 }
 

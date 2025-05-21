@@ -118,6 +118,7 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	// Append new entries to the log
 	for _, entry := range req.Entries {
 		payload, err := state.ProtoToLogEntry(entry, entry.ReferenceTable)
+		fmt.Println(payload)
 		if err != nil {
 			return nil, err
 		}
