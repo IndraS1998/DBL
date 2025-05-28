@@ -64,6 +64,23 @@ func CountWalletOperationsBetween(start, end time.Time) (int64, error) {
 	return count, err
 }
 
+func CountUserTransactionBetween(userID int, start, end time.Time) (int64, error) {
+	var count int64
+	err := defaultSM.DB.Model(&models.WalletOperation{}).
+		Where("wallet1 = ? AND timestamp >= ? AND timestamp < ?", userID, start, end).
+		Count(&count).Error
+	return count, err
+}
+
+func SumUserTransactionBetween(userID int, start, end time.Time) (float64, error) {
+	var total float64
+	err := defaultSM.DB.Model(&models.WalletOperation{}).
+		Select("COALESCE(SUM(amount), 0)").
+		Where("wallet1 = ? AND timestamp >= ? AND timestamp < ?", userID, start, end).
+		Scan(&total).Error
+	return total, err
+}
+
 func SumWalletOperationAmountsBetween(start, end time.Time) (float64, error) {
 	var total float64
 	err := defaultSM.DB.Model(&models.WalletOperation{}).
@@ -73,9 +90,30 @@ func SumWalletOperationAmountsBetween(start, end time.Time) (float64, error) {
 	return total, err
 }
 
+func SumWalletBallancesByUser(userID int) (float64, error) {
+	var total float64
+	err := defaultSM.DB.Model(&models.Wallet{}).
+		Select("COALESCE(SUM(balance), 0)").
+		Where("user_id = ?", userID).
+		Scan(&total).Error
+	return total, err
+}
+
 func CountWallets() (int64, error) {
 	var count int64
 	err := defaultSM.DB.Model(&models.Wallet{}).Count(&count).Error
+	return count, err
+}
+
+func GetAllWallets() ([]*models.Wallet, error) {
+	var wallets []*models.Wallet
+	err := defaultSM.DB.Find(&wallets).Error
+	return wallets, err
+}
+
+func CountWalletsByUser(userID int) (int64, error) {
+	var count int64
+	err := defaultSM.DB.Model(&models.Wallet{}).Where("user_id = ?", userID).Count(&count).Error
 	return count, err
 }
 

@@ -26,10 +26,18 @@ func SetupRoutes(r *gin.Engine, node *state.Node) {
 	user := r.Group("/api/user")
 	{
 		user.GET("/", controllers.GetUserInfo)
+		user.GET("/sign-in", controllers.UserSignin)
 		user.POST("/signup", controllers.UserSignup)
-		user.POST("/login", controllers.UserSignin)
 		user.PATCH("/", controllers.UpdatePassword)
 		user.DELETE("/", controllers.DeleteUser)
+	}
+
+	user_stats := r.Group("/api/user/stats")
+	{
+		user_stats.GET("/wallets", controllers.GetWalletsCount)
+		user_stats.GET("/cumulative/balance", controllers.GetGlobalBalance)
+		user_stats.GET("/transactions/count", controllers.GetTransactions)
+		user_stats.GET("/transaction/sum", controllers.GetTransactionsSum)
 	}
 
 	admin := r.Group("/api/admin")
@@ -54,6 +62,7 @@ func SetupRoutes(r *gin.Engine, node *state.Node) {
 	{
 		wallet.GET("/", controllers.GetWalletInfo)
 		wallet.GET("/user", controllers.GetWalletsByUser)
+		wallet.GET("/all", controllers.GetAllWallets)
 		wallet.POST("/create", controllers.CreateWallet)
 		wallet.POST("/transfer", controllers.Transfer)
 		wallet.POST("/deposit", controllers.Deposit)
