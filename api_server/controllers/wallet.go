@@ -25,6 +25,15 @@ func GetWalletInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"wallet": wallet})
 }
 
+func GetAllWallets(c *gin.Context) {
+	wallets, err := sm.GetAllWallets()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"wallets": wallets})
+}
+
 func GetWalletsByUser(c *gin.Context) {
 	uid := c.Query("user_id")
 	userID, err := strconv.Atoi(uid)

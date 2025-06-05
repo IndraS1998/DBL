@@ -68,7 +68,7 @@ func CountActiveUsers(c *gin.Context) {
 func CountTransactionsForMonth(c *gin.Context) {
 	month := c.Query("month") // expected format: YYYY-MM
 
-	start, end, err := parseMonth(month)
+	start, end, err := ParseMonth(month)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid month format"})
 		return
@@ -85,7 +85,7 @@ func CountTransactionsForMonth(c *gin.Context) {
 // SumTransactionsForMonth returns the total sum of transaction amounts for a given month (YYYY-MM)
 func SumTransactionsForMonth(c *gin.Context) {
 	month := c.Query("month") // expected format: YYYY-MM
-	start, end, err := parseMonth(month)
+	start, end, err := ParseMonth(month)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid month format"})
 		return
@@ -120,7 +120,7 @@ func GetRecentTransactions(c *gin.Context) {
 }
 
 // parseMonth parses "YYYY-MM" into start and end time.Time objects
-func parseMonth(month string) (time.Time, time.Time, error) {
+func ParseMonth(month string) (time.Time, time.Time, error) {
 	start, err := time.Parse("2006-01", month)
 	if err != nil {
 		return time.Time{}, time.Time{}, err

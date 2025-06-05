@@ -26,6 +26,99 @@ func GetLogEntry(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"Entry": logEntry})
 }
 
+func GetWalletsCount(c *gin.Context) {
+	id := c.Query("id")
+	user_id, err := strconv.Atoi(id)
+	if err == nil {
+		wallets, err := sm.CountWalletsByUser(user_id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
+			return
+		} else {
+			c.JSON(http.StatusOK, gin.H{"wallets": wallets})
+			return
+		}
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid user ID"})
+		return
+	}
+}
+
+func GetUserTransactions(c *gin.Context) {
+	id := c.Query("id")
+	user_id, err := strconv.Atoi(id)
+	if err == nil {
+		operations, err := sm.GetUserTransactions(user_id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
+			return
+		} else {
+			c.JSON(http.StatusOK, gin.H{"operations": operations})
+			return
+		}
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid user ID"})
+		return
+	}
+}
+
+func GetGlobalBalance(c *gin.Context) {
+	id := c.Query("id")
+	user_id, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"message": "invalid user ID"})
+		return
+	}
+	balance, err := sm.SumWalletBallancesByUser(user_id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"balance": balance})
+}
+
+func GetTransactions(c *gin.Context) {
+	id := c.Query("id")
+	month := c.Query("month")
+	userID, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid user id"})
+		return
+	}
+	start, end, err := ParseMonth(month)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid month format"})
+		return
+	}
+	count, err := sm.CountUserTransactionBetween(userID, start, end)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"transactions": count})
+}
+
+func GetTransactionsSum(c *gin.Context) {
+	id := c.Query("id")
+	month := c.Query("month")
+	userID, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid user id"})
+		return
+	}
+	start, end, err := ParseMonth(month)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid month format"})
+		return
+	}
+	sum, err := sm.SumUserTransactionBetween(userID, start, end)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"sum": sum})
+}
+
 func GetUserInfo(c *gin.Context) {
 	uid := c.Query("user_id")
 	userID, err := strconv.Atoi(uid)
@@ -42,21 +135,15 @@ func GetUserInfo(c *gin.Context) {
 }
 
 func UserSignin(c *gin.Context) {
-	type UserSigninRequest struct {
-		Email          string `json:"email" binding:"required"`
-		HashedPassword string `json:"password" binding:"required"`
-	}
-	var req UserSigninRequest
-	if err := c.ShouldBind(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": err})
-		return
-	}
-	user, err := sm.GetUserByEmail(req.Email)
+	email := c.Query("email")
+	password := c.Query("password")
+
+	user, err := sm.GetUserByEmail(email)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": err})
 		return
 	}
-	if user.HashedPassword != req.HashedPassword {
+	if user.HashedPassword != password {
 		c.JSON(http.StatusNotFound, gin.H{"message": "invalid user credentials"})
 		return
 	}
