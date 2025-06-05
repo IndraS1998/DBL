@@ -90,7 +90,7 @@ func main() {
 				for {
 					select {
 					default:
-						time.Sleep(5 * time.Second)
+						time.Sleep(300 * time.Millisecond)
 						n1.AppendEntry()
 					case <-n1.RevertToFollowerChan:
 						fmt.Printf("Reverting %v to follower\n", n1.Address)
@@ -114,7 +114,7 @@ func main() {
 				for {
 					select {
 					default:
-						time.Sleep(10 * time.Second)
+						time.Sleep(300 * time.Millisecond)
 						n2.AppendEntry()
 
 					case <-n2.RevertToFollowerChan:
@@ -141,7 +141,7 @@ func main() {
 				for {
 					select {
 					default:
-						time.Sleep(10 * time.Second)
+						time.Sleep(300 * time.Millisecond)
 						n3.AppendEntry()
 					case <-n3.RevertToFollowerChan:
 						fmt.Printf("Reverting %v to follower\n", n3.Address)

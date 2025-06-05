@@ -44,6 +44,24 @@ func GetWalletsCount(c *gin.Context) {
 	}
 }
 
+func GetUserTransactions(c *gin.Context) {
+	id := c.Query("id")
+	user_id, err := strconv.Atoi(id)
+	if err == nil {
+		operations, err := sm.GetUserTransactions(user_id)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
+			return
+		} else {
+			c.JSON(http.StatusOK, gin.H{"operations": operations})
+			return
+		}
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid user ID"})
+		return
+	}
+}
+
 func GetGlobalBalance(c *gin.Context) {
 	id := c.Query("id")
 	user_id, err := strconv.Atoi(id)

@@ -117,6 +117,31 @@ func CountWalletsByUser(userID int) (int64, error) {
 	return count, err
 }
 
+func GetUserTransactions(userID int) ([]*models.WalletOperation, error) {
+	if defaultSM == nil {
+		return nil, fmt.Errorf("state machine not yet initialized")
+	}
+	var ops []*models.WalletOperation
+
+	subQuery := defaultSM.DB.
+		Model(&models.Wallet{}).
+		Select("wallet_id").
+		Where("user_id = ?", userID)
+
+	err := defaultSM.DB.
+		Model(&models.WalletOperation{}).
+		Where("wallet1 IN (?) OR wallet2 IN (?)", subQuery, subQuery).
+		Preload("Wallet1Ref").
+		Preload("Wallet2Ref").
+		Find(&ops).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return ops, nil
+}
+
 func GetMostRecentWalletOperations(limit int) ([]*models.WalletOperation, error) {
 	var operations []*models.WalletOperation
 	err := defaultSM.DB.Order("timestamp DESC").

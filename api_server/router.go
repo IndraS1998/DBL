@@ -27,6 +27,7 @@ func SetupRoutes(r *gin.Engine, node *state.Node) {
 	{
 		user.GET("/", controllers.GetUserInfo)
 		user.GET("/sign-in", controllers.UserSignin)
+		user.GET("/transactions", controllers.GetUserTransactions)
 		user.POST("/signup", controllers.UserSignup)
 		user.PATCH("/", controllers.UpdatePassword)
 		user.DELETE("/", controllers.DeleteUser)
