@@ -19,6 +19,7 @@ type UserPayload struct {
 	UserID                                                                                 int
 	PollID                                                                                 string
 	Action                                                                                 UserAction
+	Term                                                                                   int32
 }
 
 func (up UserPayload) GetRefTable() RefTable {
@@ -30,6 +31,7 @@ type AdminPayload struct {
 	AdminID, UserId                            int
 	PollID                                     string
 	Action                                     AdminAction
+	Term                                       int32
 }
 
 func (ap AdminPayload) GetRefTable() RefTable {
@@ -41,6 +43,7 @@ type WalletOperationPayload struct {
 	Amount           int64
 	PollID           string
 	Action           WalletAction
+	Term             int32
 }
 
 func (wp WalletOperationPayload) GetRefTable() RefTable {

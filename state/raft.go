@@ -194,18 +194,10 @@ func (node *Node) AppendEntry() {
 		return
 	}
 
-	//get log length
-	logLength, errL := node.Log.GetLogLength()
-	if errL != nil {
-		fmt.Println("un able to get the log length", errL)
-		return
-	}
 	// append operations to log
-	for _, payload := range requests {
-		if err := node.Log.AppendLogEntry(int(logLength)+1, ct, payload); err != nil {
-			log.Printf("could not append log entry: %v", err)
-			return
-		}
+	if err := node.Log.AppendLogEntry(requests); err != nil {
+		log.Printf("could not append log entry: %v", err)
+		return
 	}
 	errPayload := utils.ClearPayloads()
 	if errPayload != nil {
@@ -430,28 +422,3 @@ func (n *Node) PrintDetails() {
 		n.LeaderAddress, n.Status, n.Peers)
 	fmt.Println("=======================================")
 }
-
-/*
-Example Scenario
-
-    Leader's log: [1,2,3,4,5] (last log index = 5)
-
-    Follower A's log: [1,2,3] (behind)
-
-    Follower B's log: [1,2,4] (diverged at index 3)
-
-Leader s tracking:
-
-    nextIndex = [4, 3] (for Follower A and B, respectively).
-
-    commitIndex = 2 (if entry 2 is the latest committed one).
-
-The leader will:
-
-    Send entries from nextIndex[A] = 4 to Follower A (entries [4,5]).
-
-    Send entries from nextIndex[B] = 3 to Follower B (entry [3], but it will be rejected, so nextIndex[B] is decremented to 2 and retried).
-
-Once a majority (including the leader and at least one follower) has entry 5, the leader advances commitIndex to 5.
-
-*/

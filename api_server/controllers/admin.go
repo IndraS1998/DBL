@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"raft/state"
 	sm "raft/state/stateMachine"
 	"raft/utils"
 	"strconv"
@@ -143,12 +144,16 @@ func AdminSignup(c *gin.Context) {
 		c.JSON(400, gin.H{"error": err})
 		return
 	}
-
+	ct, err := state.GetCurrentTermFromAPI()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		return
+	}
 	payload := utils.AdminPayload{
 		FirstName: req.FirstName, LastName: req.LastName, HashedPassword: req.HashedPassword, Email: req.Email,
-		AdminID: -1, UserId: -1, Action: utils.AdminCreateAccount, PollID: req.PollID,
+		AdminID: -1, UserId: -1, Action: utils.AdminCreateAccount, PollID: req.PollID, Term: ct,
 	}
-	err := utils.AppendRedisPayload(payload)
+	err = utils.AppendRedisPayload(payload)
 	if err != nil {
 		c.JSON(400, gin.H{"error": err})
 		return
@@ -167,11 +172,16 @@ func ValidateUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err})
 		return
 	}
+	ct, err := state.GetCurrentTermFromAPI()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		return
+	}
 	payload := utils.AdminPayload{
-		FirstName: "", LastName: "", HashedPassword: "", Email: "",
+		FirstName: "", LastName: "", HashedPassword: "", Email: "", Term: ct,
 		AdminID: req.AdminId, UserId: req.UserID, Action: utils.AdminValidateUser, PollID: req.PollID,
 	}
-	err := utils.AppendRedisPayload(payload)
+	err = utils.AppendRedisPayload(payload)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return

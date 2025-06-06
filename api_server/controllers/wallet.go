@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"raft/state"
 	sm "raft/state/stateMachine"
 	"raft/utils"
 	"strconv"
@@ -64,15 +65,20 @@ func Transfer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
+	ct, err := state.GetCurrentTermFromAPI()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		return
+	}
 	payload := utils.WalletOperationPayload{
 		Wallet1: req.Sender_wallet_id,
 		Wallet2: req.Receiver_wallet_id,
 		Amount:  req.Amount,
 		PollID:  req.PollID,
 		Action:  utils.WalletTransfer,
+		Term:    ct,
 	}
-	err := utils.AppendRedisPayload(payload)
+	err = utils.AppendRedisPayload(payload)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
@@ -91,15 +97,20 @@ func Withdraw(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
+	ct, err := state.GetCurrentTermFromAPI()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		return
+	}
 	payload := utils.WalletOperationPayload{
 		Wallet1: req.Wallet_id,
 		Wallet2: -1,
 		Amount:  req.Amount,
 		PollID:  req.PollID,
 		Action:  utils.WalletWithdraw,
+		Term:    ct,
 	}
-	err := utils.AppendRedisPayload(payload)
+	err = utils.AppendRedisPayload(payload)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
@@ -118,14 +129,20 @@ func Deposit(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	ct, err := state.GetCurrentTermFromAPI()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err})
+		return
+	}
 	payload := utils.WalletOperationPayload{
 		Wallet1: req.Wallet_id,
 		Wallet2: -1,
 		Amount:  req.Amount,
 		PollID:  req.PollID,
 		Action:  utils.WalletDeposit,
+		Term:    ct,
 	}
-	err := utils.AppendRedisPayload(payload)
+	err = utils.AppendRedisPayload(payload)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return

@@ -11,7 +11,7 @@ import (
 )
 
 // proto log entry -> gorm log entry
-func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error) {
+func ProtoToLogEntry(entry *pb.LogEntry, tableRef string, term int32) (utils.Payload, error) {
 	switch tableRef {
 	case string(utils.RefUser):
 		userPayload, ok := entry.Payload.(*pb.LogEntry_UserPayload)
@@ -30,6 +30,7 @@ func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error)
 				UserID:                   int(userPayload.UserPayload.UserID),
 				Action:                   utils.UserAction(userPayload.UserPayload.Action),
 				PollID:                   userPayload.UserPayload.PollID,
+				Term:                     term,
 			}, nil
 		} else {
 			return utils.UserPayload{}, fmt.Errorf("failed to cast payload to UserPayload")
@@ -46,6 +47,7 @@ func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error)
 				UserId:         int(adminPayload.AdminPayload.UserId),
 				Action:         utils.AdminAction(adminPayload.AdminPayload.Action),
 				PollID:         adminPayload.AdminPayload.PollID,
+				Term:           term,
 			}, nil
 		} else {
 			return utils.AdminPayload{}, fmt.Errorf("failed to cast payload to AdminPayload")
@@ -59,6 +61,7 @@ func ProtoToLogEntry(entry *pb.LogEntry, tableRef string) (utils.Payload, error)
 				Amount:  walletPayload.WalletOperationPayload.Amount,
 				PollID:  walletPayload.WalletOperationPayload.PollID,
 				Action:  utils.WalletAction(walletPayload.WalletOperationPayload.Action),
+				Term:    term,
 			}, nil
 		} else {
 			return utils.WalletOperationPayload{}, fmt.Errorf("failed to cast payload to Wallet operation")
