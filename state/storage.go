@@ -104,6 +104,12 @@ func (ps *PersistentState) GetCurrentTerm() (int32, error) {
 	return meta.CurrentTerm, err
 }
 
+func GetCurrentTermFromAPI() (int32, error) {
+	var meta MetaState
+	err := defaultStorage.DB.First(&meta, 1).Error
+	return meta.CurrentTerm, err
+}
+
 func (ps *PersistentState) SetVotedFor(candidateID string) error {
 	return ps.DB.Model(&MetaState{}).Where("id = ?", 1).Update("voted_for", candidateID).Error
 }
@@ -115,90 +121,103 @@ func (ps *PersistentState) GetVotedFor() (string, error) {
 }
 
 // Managing Log Entries (Append, Read, Delete)
-func (ps *PersistentState) AppendLogEntry(index int, term int32, p utils.Payload) error {
-	refTable := p.GetRefTable()
+func (ps *PersistentState) AppendLogEntry(payloads []utils.Payload) error {
 	return ps.DB.Transaction(func(tx *gorm.DB) error {
-		switch refTable {
-		case utils.RefUser:
-			payload, ok := p.(utils.UserPayload)
-			if ok {
-				userPayload := UserPayload{
-					FirstName:                &payload.FirstName,
-					LastName:                 &payload.LastName,
-					HashedPassword:           &payload.HashedPassword,
-					Email:                    &payload.Email,
-					DateOfBirth:              &payload.DateOfBirth,
-					IdentificationNumber:     &payload.IdentificationNumber,
-					IdentificationImageFront: &payload.IdentificationImageFront,
-					IdentificationImageBack:  &payload.IdentificationImageBack,
-					PrevPW:                   &payload.PrevPW,
-					NewPW:                    &payload.NewPW,
-					UserID:                   &payload.UserID,
-					Action:                   payload.Action,
-				}
-				if err := tx.Create(&userPayload).Error; err != nil {
-					return fmt.Errorf("failed to created the associated user payload:%w", err)
-				}
-				logEntry := LogEntry{
-					Index: index, Term: term, ReferenceTable: refTable, PayloadID: userPayload.ID, PollID: payload.PollID,
-				}
-				if err := tx.Create(&logEntry).Error; err != nil {
-					return fmt.Errorf("failed to create the log entry:%w", err)
-				}
-				return nil
-			} else {
-				return fmt.Errorf("failed to cast payload to UserPayload")
-			}
-		case utils.RefAdmin:
-			payload, ok := p.(utils.AdminPayload)
-			if ok {
-				adminPayload := AdminPayload{
-					FirstName:      &payload.FirstName,
-					LastName:       &payload.LastName,
-					Email:          &payload.Email,
-					HashedPassword: &payload.HashedPassword,
-					AdminID:        &payload.AdminID,
-					UserId:         &payload.UserId,
-					Action:         payload.Action,
-				}
-				if err := tx.Create(&adminPayload).Error; err != nil {
-					return fmt.Errorf("failed to create admin payload: %w", err)
-				}
-				logEntry := LogEntry{
-					Index: index, Term: term, ReferenceTable: refTable, PayloadID: adminPayload.ID, PollID: payload.PollID,
-				}
-				if err := tx.Create(&logEntry).Error; err != nil {
-					return fmt.Errorf("failed to create log entry for admin payload:%w", err)
-				}
-				return nil
-			} else {
-				return fmt.Errorf("failed to cast payload as AdminPayload")
-			}
-		case utils.RefWallet:
-			payload, ok := p.(utils.WalletOperationPayload)
-			if ok {
-				walletPayload := WalletOperationPayload{
-					Wallet1: payload.Wallet1,
-					Wallet2: &payload.Wallet2,
-					Amount:  payload.Amount,
-					Action:  payload.Action,
-				}
-				if err := tx.Create(&walletPayload).Error; err != nil {
-					return fmt.Errorf("failed to create wallet payload: %w", err)
-				}
-				logEntry := LogEntry{
-					Index: index, Term: term, ReferenceTable: refTable, PayloadID: walletPayload.ID, PollID: payload.PollID,
-				}
-				if err := tx.Create(&logEntry).Error; err != nil {
-					return fmt.Errorf("failed to create log entry for wallet payload:%w", err)
-				}
-				return nil
-			} else {
-				return fmt.Errorf("failed to cast payload as wallet operation")
-			}
-		default:
-			return fmt.Errorf("unsupported operation: %s", refTable)
+		var lastIndexPtr *int
+		if err := tx.Model(&LogEntry{}).Select("MAX(`index`)").Scan(&lastIndexPtr).Error; err != nil {
+			return fmt.Errorf("failed to get last log index: %w", err)
 		}
+		lastIndex := 0
+		if lastIndexPtr != nil {
+			lastIndex = *lastIndexPtr
+		}
+		for i, p := range payloads {
+			refTable := p.GetRefTable()
+			nextIndex := lastIndex + i + 1
+			switch refTable {
+			case utils.RefUser:
+				payload, ok := p.(utils.UserPayload)
+				if ok {
+					userPayload := UserPayload{
+						FirstName:                &payload.FirstName,
+						LastName:                 &payload.LastName,
+						HashedPassword:           &payload.HashedPassword,
+						Email:                    &payload.Email,
+						DateOfBirth:              &payload.DateOfBirth,
+						IdentificationNumber:     &payload.IdentificationNumber,
+						IdentificationImageFront: &payload.IdentificationImageFront,
+						IdentificationImageBack:  &payload.IdentificationImageBack,
+						PrevPW:                   &payload.PrevPW,
+						NewPW:                    &payload.NewPW,
+						UserID:                   &payload.UserID,
+						Action:                   payload.Action,
+					}
+					if err := tx.Create(&userPayload).Error; err != nil {
+						return fmt.Errorf("failed to created the associated user payload:%w", err)
+					}
+					logEntry := LogEntry{
+						Index: nextIndex, Term: payload.Term, ReferenceTable: refTable, PayloadID: userPayload.ID, PollID: payload.PollID,
+					}
+					if err := tx.Create(&logEntry).Error; err != nil {
+						return fmt.Errorf("failed to create the log entry:%w", err)
+					}
+					return nil
+				} else {
+					return fmt.Errorf("failed to cast payload to UserPayload")
+				}
+			case utils.RefAdmin:
+				payload, ok := p.(utils.AdminPayload)
+				fmt.Println(payload.Term)
+				if ok {
+					adminPayload := AdminPayload{
+						FirstName:      &payload.FirstName,
+						LastName:       &payload.LastName,
+						Email:          &payload.Email,
+						HashedPassword: &payload.HashedPassword,
+						AdminID:        &payload.AdminID,
+						UserId:         &payload.UserId,
+						Action:         payload.Action,
+					}
+					if err := tx.Create(&adminPayload).Error; err != nil {
+						return fmt.Errorf("failed to create admin payload: %w", err)
+					}
+					logEntry := LogEntry{
+						Index: nextIndex, Term: payload.Term, ReferenceTable: refTable, PayloadID: adminPayload.ID, PollID: payload.PollID,
+					}
+					if err := tx.Create(&logEntry).Error; err != nil {
+						return fmt.Errorf("failed to create log entry for admin payload:%w", err)
+					}
+					return nil
+				} else {
+					return fmt.Errorf("failed to cast payload as AdminPayload")
+				}
+			case utils.RefWallet:
+				payload, ok := p.(utils.WalletOperationPayload)
+				if ok {
+					walletPayload := WalletOperationPayload{
+						Wallet1: payload.Wallet1,
+						Wallet2: &payload.Wallet2,
+						Amount:  payload.Amount,
+						Action:  payload.Action,
+					}
+					if err := tx.Create(&walletPayload).Error; err != nil {
+						return fmt.Errorf("failed to create wallet payload: %w", err)
+					}
+					logEntry := LogEntry{
+						Index: nextIndex, Term: payload.Term, ReferenceTable: refTable, PayloadID: walletPayload.ID, PollID: payload.PollID,
+					}
+					if err := tx.Create(&logEntry).Error; err != nil {
+						return fmt.Errorf("failed to create log entry for wallet payload:%w", err)
+					}
+					return nil
+				} else {
+					return fmt.Errorf("failed to cast payload as wallet operation")
+				}
+			default:
+				return fmt.Errorf("unsupported operation: %s", refTable)
+			}
+		}
+		return nil
 	})
 }
 

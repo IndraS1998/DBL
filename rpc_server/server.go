@@ -10,6 +10,7 @@ import (
 
 	pb "raft/raft"
 	"raft/state"
+	"raft/utils"
 
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
@@ -116,17 +117,19 @@ func (s *server) AppendEntries(_ context.Context, req *pb.AppendEntriesRequest) 
 	s.node.Mu.Unlock()
 
 	// Append new entries to the log
+	payloads := []utils.Payload{}
 	for _, entry := range req.Entries {
-		payload, err := state.ProtoToLogEntry(entry, entry.ReferenceTable)
-		fmt.Println(payload)
+		payload, err := state.ProtoToLogEntry(entry, entry.ReferenceTable, entry.Term)
 		if err != nil {
 			return nil, err
 		}
-		err1 := s.node.Log.AppendLogEntry(int(entry.Index), entry.Term, payload)
-		if err1 != nil {
-			log.Printf("could not insert log entry: %v", err)
-			return nil, err1
-		}
+		payloads = append(payloads, payload)
+	}
+
+	err := s.node.Log.AppendLogEntry(payloads)
+	if err != nil {
+		log.Printf("could not insert log entry: %v", err)
+		return nil, err
 	}
 
 	// Update commit index
